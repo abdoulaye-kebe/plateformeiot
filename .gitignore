@@ -1,0 +1,29 @@
+.env
+*.local
+.DS_Store
+
+# Go
+bin/
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# IDE
+.idea/
+.vscode/
+
+# Docker volumes (local)
+data/

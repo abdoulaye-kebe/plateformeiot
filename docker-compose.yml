@@ -1,0 +1,223 @@
+# Lorawan Platform — ChirpStack + services SaaS
+# Usage: docker compose up -d
+
+include:
+  - path: infra/chirpstack/docker-compose.yml
+
+services:
+  platform-postgres:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+      POSTGRES_DB: platform
+    ports:
+      - "5433:5432"
+    volumes:
+      - platform-postgres-data:/var/lib/postgresql/data
+      - ./infra/platform/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./infra/platform/postgres/002_phase1.sql:/docker-entrypoint-initdb.d/002-phase1.sql:ro
+      - ./infra/platform/postgres/003_phase2.sql:/docker-entrypoint-initdb.d/003-phase2.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  platform-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - platform-redis-data:/data
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "${NATS_HOST_PORT:-4222}:4222"
+      - "${NATS_MONITOR_HOST_PORT:-8222}:8222"
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: platform
+      MINIO_ROOT_PASSWORD: platform123
+    ports:
+      - "${MINIO_API_HOST_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
+    volumes:
+      - minio-data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: start-dev --import-realm
+    depends_on:
+      - mailpit
+    environment:
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8082
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./infra/keycloak/lorawan-realm.json:/opt/keycloak/data/import/lorawan-realm.json:ro
+
+  platform-api:
+    build:
+      context: ./services/platform-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      platform-redis:
+        condition: service_started
+      chirpstack-rest-api:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    environment:
+      PLATFORM_ADDR: ":8081"
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      REDIS_URL: redis://platform-redis:6379/0
+      NATS_URL: nats://nats:4222
+      CHIRPSTACK_REST_URL: http://chirpstack-rest-api:8090
+      CHIRPSTACK_API_TOKEN: ${CHIRPSTACK_API_TOKEN:-}
+      CHIRPSTACK_TENANT_ID: ${CHIRPSTACK_TENANT_ID:-}
+      AUTH_MODE: ${AUTH_MODE:-required}
+      KEYCLOAK_ISSUER: http://localhost:8082/realms/lorawan
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/lorawan/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      KEYCLOAK_REALM: lorawan
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      AGENT_HTTP_URL: http://ai-agent:8096
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: platform
+      MINIO_SECRET_KEY: platform123
+      MINIO_BUCKET: lorawan-payloads
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/billing?paid=1}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/billing}
+      CONSOLE_PUBLIC_URL: ${CONSOLE_PUBLIC_URL:-http://localhost:3000}
+    ports:
+      - "8081:8081"
+
+  anomaly-worker:
+    build:
+      context: ./services/anomaly-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      ANOMALY_INTERVAL_SEC: "300"
+
+  mqtt-ingestion:
+    build:
+      context: ./services/mqtt-ingestion
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      nats:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      MQTT_TOPICS: application/+/device/+/event/up,eu868/gateway/+/event/stats
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LORAWAN_REGION: eu868
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: platform
+      MINIO_SECRET_KEY: platform123
+      MINIO_BUCKET: lorawan-payloads
+
+  rule-engine:
+    build:
+      context: ./services/rule-engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      NATS_URL: nats://nats:4222
+
+  ai-agent:
+    build:
+      context: ./services/ai-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - platform-api
+      - chirpstack-rest-api
+    environment:
+      CHIRPSTACK_REST_URL: http://chirpstack-rest-api:8090
+      CHIRPSTACK_API_TOKEN: ${CHIRPSTACK_API_TOKEN:-}
+      CHIRPSTACK_TENANT_ID: ${CHIRPSTACK_TENANT_ID:-}
+      CHIRPSTACK_DEFAULT_APPLICATION_ID: ${CHIRPSTACK_DEFAULT_APPLICATION_ID:-bc0328f2-e02f-4ef0-b214-375a6fb13ccb}
+      CHIRPSTACK_DEFAULT_DEVICE_PROFILE_ID: ${CHIRPSTACK_DEFAULT_DEVICE_PROFILE_ID:-50c8b1f7-fac6-4d6e-a595-7d82963748c7}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-mistral:latest}
+      MCP_TRANSPORT: sse
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8095"
+      MCP_SERVER_URL: http://127.0.0.1:8095/sse
+      AGENT_HTTP_PORT: "8096"
+    ports:
+      - "8095:8095"
+      - "8096:8096"
+
+  console:
+    build:
+      context: ./apps/console
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - platform-api
+    environment:
+      PLATFORM_API_INTERNAL_URL: http://platform-api:8081
+      NEXT_PUBLIC_PLATFORM_API_URL: http://localhost:8081
+      NEXT_PUBLIC_CHIRPSTACK_URL: http://localhost:8080
+      NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8082
+      NEXT_PUBLIC_KEYCLOAK_REALM: lorawan
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: lorawan-console
+    ports:
+      - "3000:3000"
+
+volumes:
+  platform-postgres-data:
+  platform-redis-data:
+  minio-data:

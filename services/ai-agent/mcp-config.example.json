@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lorawan-platform": {
+      "url": "http://localhost:8095/sse",
+      "description": "Outils IoT LoRaWAN — ChirpStack diagnostics"
+    }
+  }
+}
