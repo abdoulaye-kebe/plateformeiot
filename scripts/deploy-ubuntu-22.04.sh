@@ -81,16 +81,22 @@ export NEXT_PUBLIC_CHIRPSTACK_URL="${BASE}:${CHIRPSTACK_UI_PORT}"
 
 docker compose build --pull console platform-api ai-agent mqtt-ingestion rule-engine anomaly-worker
 
-echo "→ Démarrage stack..."
-docker compose up -d
+echo "→ Phase 1 : bases de données et infra..."
+docker compose up -d platform-postgres postgres redis platform-redis mosquitto nats minio mailpit
 
-echo "→ Attente Postgres..."
-for i in {1..30}; do
-  if docker compose exec -T platform-postgres pg_isready -U platform -d platform >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
-done
+bash "$ROOT/scripts/wait-postgres.sh" 180
+
+echo "→ Phase 2 : ChirpStack + Keycloak..."
+docker compose up -d chirpstack chirpstack-rest-api \
+  chirpstack-gateway-bridge chirpstack-gateway-bridge-basicstation keycloak
+
+sleep 15
+
+echo "→ Phase 3 : services applicatifs..."
+docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
+
+echo "→ Attente Postgres (vérif)..."
+bash "$ROOT/scripts/wait-postgres.sh" 60 || true
 
 bash "$ROOT/scripts/setup-chirpstack.sh" || true
 bash "$ROOT/scripts/setup-keycloak.sh" || true
