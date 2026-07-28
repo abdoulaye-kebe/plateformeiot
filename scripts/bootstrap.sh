@@ -9,11 +9,7 @@ echo "→ Attente Postgres..."
 sleep 5
 bash scripts/setup-chirpstack.sh
 bash scripts/setup-keycloak.sh
-bash scripts/migrate-phase2.sh 2>/dev/null || true
-bash scripts/migrate-phase3.sh 2>/dev/null || true
-bash scripts/migrate-phase3-features.sh 2>/dev/null || true
-bash scripts/migrate-phase4-licensing.sh 2>/dev/null || true
-bash scripts/migrate-phase4-billing-interval.sh 2>/dev/null || true
+bash scripts/migrate-all.sh 2>/dev/null || true
 docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
 echo "✓ Bootstrap terminé"
 echo "  Console : http://localhost:3000/login (admin / admin)"

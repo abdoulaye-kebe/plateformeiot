@@ -69,8 +69,8 @@ services:
     depends_on:
       - mailpit
     environment:
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8082
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_HOST:-localhost}
+      KC_HOSTNAME_PORT: ${KEYCLOAK_PUBLIC_PORT:-8082}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KEYCLOAK_ADMIN: admin
@@ -103,7 +103,7 @@ services:
       CHIRPSTACK_API_TOKEN: ${CHIRPSTACK_API_TOKEN:-}
       CHIRPSTACK_TENANT_ID: ${CHIRPSTACK_TENANT_ID:-}
       AUTH_MODE: ${AUTH_MODE:-required}
-      KEYCLOAK_ISSUER: http://localhost:8082/realms/lorawan
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8082/realms/lorawan}
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/lorawan/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080
       KEYCLOAK_REALM: lorawan
@@ -204,14 +204,15 @@ services:
     build:
       context: ./apps/console
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_PLATFORM_API_URL: ${NEXT_PUBLIC_PLATFORM_API_URL:-http://localhost:8081}
+        NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL:-http://localhost:8082}
+        NEXT_PUBLIC_CHIRPSTACK_URL: ${NEXT_PUBLIC_CHIRPSTACK_URL:-http://localhost:8080}
     restart: unless-stopped
     depends_on:
       - platform-api
     environment:
       PLATFORM_API_INTERNAL_URL: http://platform-api:8081
-      NEXT_PUBLIC_PLATFORM_API_URL: http://localhost:8081
-      NEXT_PUBLIC_CHIRPSTACK_URL: http://localhost:8080
-      NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8082
       NEXT_PUBLIC_KEYCLOAK_REALM: lorawan
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: lorawan-console
     ports:

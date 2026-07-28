@@ -1,7 +1,11 @@
-.PHONY: up down logs setup-chirpstack platform-api ai-agent console bootstrap test-go
+.PHONY: up down logs setup-chirpstack platform-api ai-agent console bootstrap test-go deploy-ubuntu
 
 bootstrap:
 	bash scripts/bootstrap.sh
+
+deploy-ubuntu:
+	@echo "Usage: PUBLIC_HOST=<ip-ou-domaine> sudo -E bash scripts/deploy-ubuntu-22.04.sh"
+	@echo "Voir docs/deployment/ubuntu-22.04.md"
 
 up:
 	docker compose up -d
