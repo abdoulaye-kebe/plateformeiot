@@ -39,6 +39,9 @@ sleep 15
 bash "$ROOT/scripts/setup-chirpstack.sh" || true
 bash "$ROOT/scripts/setup-keycloak.sh" || true
 
+echo "→ Rebuild console (URLs publiques)..."
+bash "$ROOT/scripts/rebuild-console.sh"
+
 echo "→ Démarrage services applicatifs..."
 compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
 

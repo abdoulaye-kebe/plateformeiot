@@ -2,6 +2,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
+CONSOLE_PUBLIC_URL="${CONSOLE_PUBLIC_URL:-http://localhost:3000}"
 KC_URL="${KEYCLOAK_ADMIN_URL:-http://localhost:8082}"
 REALM="${KEYCLOAK_REALM:-lorawan}"
 ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
@@ -83,5 +93,34 @@ curl -sf -X PUT "$KC_URL/admin/realms/$REALM" \
   -H "Content-Type: application/json" \
   -d "$SMTP_PATCH" >/dev/null
 echo "✓ SMTP configuré ($SMTP_FROM via $SMTP_HOST:$SMTP_PORT — UI Mailpit http://localhost:8025)"
+
+echo "→ Configuration client lorawan-console (CORS / redirect pour $CONSOLE_PUBLIC_URL)..."
+CLIENTS_JSON="$(curl -sf "$KC_URL/admin/realms/$REALM/clients?clientId=lorawan-console" -H "Authorization: Bearer $TOKEN")"
+CLIENT_ID="$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" <<< "$CLIENTS_JSON")"
+if [[ -n "$CLIENT_ID" ]]; then
+  CLIENT_JSON="$(curl -sf "$KC_URL/admin/realms/$REALM/clients/$CLIENT_ID" -H "Authorization: Bearer $TOKEN")"
+  CLIENT_PATCH="$(python3 - <<'PY' "$CLIENT_JSON" "$CONSOLE_PUBLIC_URL"
+import json, sys
+from urllib.parse import urlparse
+client = json.loads(sys.argv[1])
+origin = sys.argv[2].rstrip("/")
+parsed = urlparse(origin)
+base = f"{parsed.scheme}://{parsed.netloc}"
+redirect = f"{base}/*"
+redirects = list(dict.fromkeys(client.get("redirectUris", []) + [redirect]))
+origins = list(dict.fromkeys(client.get("webOrigins", []) + [base]))
+client["redirectUris"] = redirects
+client["webOrigins"] = origins
+print(json.dumps(client))
+PY
+)"
+  curl -sf -X PUT "$KC_URL/admin/realms/$REALM/clients/$CLIENT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$CLIENT_PATCH" >/dev/null
+  echo "✓ Client lorawan-console : webOrigins inclut $(echo "$CONSOLE_PUBLIC_URL" | sed 's|/*$||')"
+else
+  echo "⚠ Client lorawan-console introuvable"
+fi
 
 echo "✓ Setup Keycloak terminé"
