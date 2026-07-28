@@ -90,14 +90,14 @@ export default function FuotaPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-6">
       <PageHeader title="FUOTA" subtitle="Mises à jour firmware LoRaWAN via groupes multicast" />
 
       {write && (
         <Section title="Nouveau déploiement">
           <form onSubmit={createDeployment} className="grid max-w-xl gap-3">
-            <input className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <select className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" value={form.applicationId} onChange={(e) => setForm({ ...form, applicationId: e.target.value })} required>
+            <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <select className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" value={form.applicationId} onChange={(e) => setForm({ ...form, applicationId: e.target.value })} required>
               <option value="">Application</option>
               {applications.map((a, i) => {
                 const app = a.application ?? a;
@@ -106,29 +106,29 @@ export default function FuotaPage() {
                 return <option key={id || i} value={id}>{name}</option>;
               })}
             </select>
-            <textarea className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono" placeholder="DevEUIs (un par ligne ou séparés par virgule)" value={form.devEuis} onChange={(e) => setForm({ ...form, devEuis: e.target.value })} rows={3} />
-            <input type="file" accept=".bin,.hex,.fw" onChange={(e) => e.target.files?.[0] && uploadFirmware(e.target.files[0])} className="text-sm text-slate-400" />
-            <button type="submit" className="rounded-lg bg-emerald-700 py-2 text-sm hover:bg-emerald-600">Créer déploiement multicast</button>
+            <textarea className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm font-mono" placeholder="DevEUIs (un par ligne ou séparés par virgule)" value={form.devEuis} onChange={(e) => setForm({ ...form, devEuis: e.target.value })} rows={3} />
+            <input type="file" accept=".bin,.hex,.fw" onChange={(e) => e.target.files?.[0] && uploadFirmware(e.target.files[0])} className="text-sm text-gray-600" />
+            <button type="submit" className="rounded-lg bg-brand py-2 text-sm hover:bg-brand">Créer déploiement multicast</button>
           </form>
-          {msg && <p className="mt-2 text-sm text-emerald-300">{msg}</p>}
+          {msg && <p className="mt-2 text-sm text-brand">{msg}</p>}
         </Section>
       )}
 
       <Section title="Déploiements">
         {deployments.length === 0 ? (
-          <p className="text-sm text-slate-500">Aucun déploiement FUOTA.</p>
+          <p className="text-sm text-gray-500">Aucun déploiement FUOTA.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-800 text-left text-slate-400">
+              <tr className="border-b border-gray-200 text-left text-gray-600">
                 <th className="pb-2">Nom</th><th>Status</th><th>Devices</th><th>Multicast</th><th />
               </tr>
             </thead>
             <tbody>
               {deployments.map((d) => (
-                <tr key={d.id} className="border-b border-slate-800/50">
+                <tr key={d.id} className="border-b border-gray-200/50">
                   <td className="py-2">{d.name}</td>
-                  <td className="text-emerald-300">{d.status}</td>
+                  <td className="text-brand">{d.status}</td>
                   <td>{d.deviceCount}</td>
                   <td className="font-mono text-xs">{d.multicastGroupId || "—"}</td>
                   <td>
@@ -141,7 +141,7 @@ export default function FuotaPage() {
             </tbody>
           </table>
         )}
-        <p className="mt-4 text-xs text-slate-500">Le déploiement multicast prépare la mise à jour OTA — le transfert firmware complet s&apos;effectue via le réseau LoRaWAN.</p>
+        <p className="mt-4 text-xs text-gray-500">Le déploiement multicast prépare la mise à jour OTA — le transfert firmware complet s&apos;effectue via le réseau LoRaWAN.</p>
       </Section>
     </div>
   );

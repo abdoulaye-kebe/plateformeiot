@@ -10,7 +10,29 @@ import (
 	"github.com/lorawan-platform/platform-api/internal/store"
 )
 
+func (d Deps) adminSelectedPlatformTenantID(r *http.Request) (*uuid.UUID, bool) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok || !hasAnyRole(user, "platform-admin") {
+		return nil, false
+	}
+	q := r.URL.Query().Get("tenantId")
+	if q == "" {
+		return nil, false
+	}
+	id, err := uuid.Parse(q)
+	if err != nil {
+		return nil, false
+	}
+	return &id, true
+}
+
 func (d Deps) effectiveTenantID(r *http.Request) string {
+	if tid, ok := d.adminSelectedPlatformTenantID(r); ok {
+		tenant, err := d.TenantStore.GetByID(r.Context(), *tid)
+		if err == nil && tenant.ChirpStackTenantID != nil && *tenant.ChirpStackTenantID != "" {
+			return *tenant.ChirpStackTenantID
+		}
+	}
 	user, ok := auth.UserFromContext(r.Context())
 	if ok && user.TenantID != "" {
 		return user.TenantID
@@ -22,6 +44,9 @@ func (d Deps) effectiveTenantID(r *http.Request) string {
 }
 
 func (d Deps) platformTenantID(ctx context.Context, r *http.Request) (*uuid.UUID, bool) {
+	if tid, ok := d.adminSelectedPlatformTenantID(r); ok {
+		return tid, true
+	}
 	user, ok := auth.UserFromContext(r.Context())
 	if !ok || user.TenantID == "" {
 		return nil, false
@@ -79,16 +104,11 @@ func (d Deps) dataTenantScope(w http.ResponseWriter, r *http.Request) (*uuid.UUI
 	}
 
 	if hasAnyRole(user, "platform-admin") {
-		if q := r.URL.Query().Get("tenantId"); q != "" {
-			id, err := uuid.Parse(q)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid tenantId")
+		if tid, ok := d.adminSelectedPlatformTenantID(r); ok {
+			if err := d.assertTenantActive(w, r.Context(), *tid); err != nil {
 				return nil, false
 			}
-			if err := d.assertTenantActive(w, r.Context(), id); err != nil {
-				return nil, false
-			}
-			return &id, true
+			return tid, true
 		}
 		if tid, ok := d.platformTenantID(r.Context(), r); ok {
 			if err := d.assertTenantActive(w, r.Context(), *tid); err != nil {

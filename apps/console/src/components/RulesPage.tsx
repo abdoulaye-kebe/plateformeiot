@@ -49,13 +49,13 @@ export default function RulesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-6">
       <PageHeader
         title="Règles & routage"
         subtitle="Automatisez le traitement des uplinks : alertes, webhooks vers vos plateformes"
         action={
           <button type="button" onClick={() => write && setShowForm(!showForm)} disabled={!write}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${write ? "bg-emerald-600 hover:bg-emerald-500" : "bg-slate-700 text-slate-400 cursor-not-allowed"}`}>
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${write ? "bg-brand hover:bg-brand-dark" : "bg-gray-100 text-gray-600 cursor-not-allowed"}`}>
             {showForm ? "Annuler" : "+ Nouvelle règle"}
           </button>
         }
@@ -63,19 +63,19 @@ export default function RulesPage() {
       <RoleBanner />
 
       {showForm && write && (
-        <form onSubmit={createRule} className="mb-8 grid gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-6 sm:grid-cols-2">
-          <input className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          <select className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" value={form.field} onChange={(e) => setForm({ ...form, field: e.target.value })}>
+        <form onSubmit={createRule} className="mb-8 grid gap-3 rounded-xl border border-gray-200 bg-white p-6 sm:grid-cols-2">
+          <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <select className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" value={form.field} onChange={(e) => setForm({ ...form, field: e.target.value })}>
             <option value="rssi">RSSI</option><option value="snr">SNR</option><option value="dr">DR</option>
           </select>
-          <select className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" value={form.op} onChange={(e) => setForm({ ...form, op: e.target.value })}>
+          <select className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" value={form.op} onChange={(e) => setForm({ ...form, op: e.target.value })}>
             <option value="lt">&lt; inférieur</option><option value="gt">&gt; supérieur</option><option value="eq">= égal</option>
           </select>
-          <input type="number" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
-          <input className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Webhook URL (HTTPS)" value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} />
-          <button type="submit" className="sm:col-span-2 rounded-lg bg-emerald-600 py-2 font-medium">Créer règle</button>
-          {error && <p className="sm:col-span-2 text-sm text-red-400">{error}</p>}
+          <input type="number" className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
+          <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" placeholder="Webhook URL (HTTPS)" value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} />
+          <button type="submit" className="sm:col-span-2 rounded-lg bg-brand py-2 font-medium">Créer règle</button>
+          {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
         </form>
       )}
 
@@ -85,19 +85,19 @@ export default function RulesPage() {
         ) : (
           <div className="space-y-3">
             {rules.map((r) => (
-              <article key={r.id} className="rounded-lg border border-slate-800 p-4">
+              <article key={r.id} className="rounded-lg border border-gray-200 p-4">
                 <div className="flex justify-between">
                   <div>
                     <p className="font-medium">{r.name}</p>
-                    <p className="text-sm text-slate-500">{r.description || "—"}</p>
-                    <p className="mt-2 text-xs text-slate-400">
+                    <p className="text-sm text-gray-500">{r.description || "—"}</p>
+                    <p className="mt-2 text-xs text-gray-600">
                       SI {r.condition?.field} {r.condition?.op} {r.condition?.value}
-                      {r.actions?.some((a) => a.type === "webhook") && <span className="ml-2 text-emerald-400">→ webhook</span>}
+                      {r.actions?.some((a) => a.type === "webhook") && <span className="ml-2 text-brand">→ webhook</span>}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className={`text-xs ${r.enabled ? "text-emerald-400" : "text-slate-500"}`}>{r.enabled ? "ON" : "OFF"}</span>
-                    {write && <button onClick={() => removeRule(r.id)} className="text-xs text-red-400 hover:underline">Suppr.</button>}
+                    <span className={`text-xs ${r.enabled ? "text-brand" : "text-gray-500"}`}>{r.enabled ? "ON" : "OFF"}</span>
+                    {write && <button onClick={() => removeRule(r.id)} className="text-xs text-red-600 hover:underline">Suppr.</button>}
                   </div>
                 </div>
               </article>

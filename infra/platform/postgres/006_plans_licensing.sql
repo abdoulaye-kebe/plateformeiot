@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS plans (
 
 INSERT INTO plans (id, name, max_devices, max_gateways, max_uplinks_month, features, price_eur_monthly, price_eur_yearly, sort_order)
 VALUES
-    ('starter', 'Starter', 50, 5, 100000, '["analytics","rules","noc"]', 49.00, 490.00, 1),
+    ('starter', 'Starter', 50, 5, 100000, '["analytics","rules","noc","agent"]', 49.00, 490.00, 1),
     ('pro', 'Pro', 500, 50, 1000000, '["analytics","rules","noc","fuota","anomalies","agent"]', 199.00, 1990.00, 2),
     ('enterprise', 'Enterprise', 10000, 500, 100000000, '["analytics","rules","noc","fuota","anomalies","agent","api_keys","priority_support"]', 999.00, 9990.00, 3)
 ON CONFLICT (id) DO UPDATE SET

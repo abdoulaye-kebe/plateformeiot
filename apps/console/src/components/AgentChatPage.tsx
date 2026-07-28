@@ -46,16 +46,16 @@ function DeviceForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (cmd:
     );
   };
 
-  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-mono";
+  const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-mono";
 
   return (
-    <form onSubmit={submit} className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+    <form onSubmit={submit} className="mt-3 space-y-2 border-t border-gray-200 pt-3">
       <input className={inputCls} placeholder="DevEUI * (16 hex)" value={devEui} onChange={(e) => setDevEui(e.target.value)} disabled={disabled} />
       <input className={inputCls} placeholder="JoinEUI * (16 hex)" value={joinEui} onChange={(e) => setJoinEui(e.target.value)} disabled={disabled} />
       <input className={inputCls} placeholder="AppKey * (32 hex)" value={appKey} onChange={(e) => setAppKey(e.target.value)} disabled={disabled} />
       <input className={inputCls} placeholder="Nom (optionnel)" value={name} onChange={(e) => setName(e.target.value)} disabled={disabled} />
-      {err && <p className="text-xs text-red-400">{err}</p>}
-      <button type="submit" disabled={disabled} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm hover:bg-emerald-500 disabled:opacity-50">
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <button type="submit" disabled={disabled} className="rounded-lg bg-brand px-4 py-2 text-sm hover:bg-brand-dark disabled:opacity-50">
         Créer le device
       </button>
     </form>
@@ -75,14 +75,14 @@ function GatewayForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (cmd
     onSubmit(`crée une gateway ${gatewayId.toLowerCase()} nommée ${name.trim()}`);
   };
 
-  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-mono";
+  const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-mono";
 
   return (
-    <form onSubmit={submit} className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+    <form onSubmit={submit} className="mt-3 space-y-2 border-t border-gray-200 pt-3">
       <input className={inputCls} placeholder="Gateway ID * (16 hex)" value={gatewayId} onChange={(e) => setGatewayId(e.target.value)} disabled={disabled} />
       <input className={inputCls} placeholder="Nom * (ex: GW-Lyon)" value={name} onChange={(e) => setName(e.target.value)} disabled={disabled} />
-      {err && <p className="text-xs text-red-400">{err}</p>}
-      <button type="submit" disabled={disabled} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm hover:bg-emerald-500 disabled:opacity-50">
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <button type="submit" disabled={disabled} className="rounded-lg bg-brand px-4 py-2 text-sm hover:bg-brand-dark disabled:opacity-50">
         Créer la gateway
       </button>
     </form>
@@ -158,22 +158,22 @@ export default function AgentChatPage() {
               type="button"
               onClick={() => send(s)}
               disabled={loading}
-              className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300 hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-50"
+              className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:border-brand hover:text-brand disabled:opacity-50"
             >
               {s.length > 42 ? s.slice(0, 42) + "…" : s}
             </button>
           ))}
         </div>
 
-        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
+        <div className="flex flex-1 flex-col rounded-xl border border-gray-200 bg-white">
           <div className="flex-1 space-y-4 overflow-y-auto p-4" style={{ minHeight: "360px", maxHeight: "calc(100vh - 340px)" }}>
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${
                     m.role === "user"
-                      ? "bg-emerald-600/30 text-emerald-50"
-                      : "bg-slate-950 text-slate-200 border border-slate-800"
+                      ? "bg-brand/20 text-gray-900"
+                      : "bg-neutral-100 text-gray-800 border border-gray-200"
                   }`}
                 >
                   {m.content}
@@ -187,14 +187,14 @@ export default function AgentChatPage() {
                     <p className="mt-2 text-xs text-sky-400">Connectez-vous en operator pour créer des ressources.</p>
                   )}
                   {m.provider && m.role === "assistant" && (
-                    <p className="mt-2 text-[10px] uppercase tracking-wider text-slate-500">via {m.provider}</p>
+                    <p className="mt-2 text-[10px] uppercase tracking-wider text-gray-500">via {m.provider}</p>
                   )}
                 </div>
               </div>
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-400 animate-pulse">
+                <div className="rounded-2xl border border-gray-200 bg-neutral-100 px-4 py-3 text-sm text-gray-600 animate-pulse">
                   L&apos;agent analyse votre demande…
                 </div>
               </div>
@@ -204,10 +204,10 @@ export default function AgentChatPage() {
 
           <form
             onSubmit={(e) => { e.preventDefault(); send(input); }}
-            className="flex gap-2 border-t border-slate-800 p-4"
+            className="flex gap-2 border-t border-gray-200 p-4"
           >
             <input
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm"
+              className="flex-1 rounded-xl border border-gray-300 bg-neutral-100 px-4 py-3 text-sm"
               placeholder="Posez votre question… (ex: ajoute un device, liste les gateways…)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -216,7 +216,7 @@ export default function AgentChatPage() {
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+              className="rounded-xl bg-brand px-6 py-3 text-sm font-medium hover:bg-brand-dark disabled:opacity-50"
             >
               Envoyer
             </button>
@@ -224,13 +224,13 @@ export default function AgentChatPage() {
         </div>
       </div>
 
-      <aside className="hidden w-72 shrink-0 border-l border-slate-800 bg-slate-900/50 p-4 xl:block">
+      <aside className="hidden w-72 shrink-0 border-l border-gray-200 bg-white p-4 xl:block">
         <Section title={`Outils MCP (${tools.length})`}>
-          <ul className="max-h-[70vh] space-y-2 overflow-y-auto text-xs text-slate-400">
+          <ul className="max-h-[70vh] space-y-2 overflow-y-auto text-xs text-gray-600">
             {tools.map((t) => (
-              <li key={t.name} className="rounded border border-slate-800 p-2">
-                <p className="font-mono text-emerald-400">{t.name}</p>
-                <p className="mt-1 text-slate-500">{t.description?.slice(0, 80)}…</p>
+              <li key={t.name} className="rounded border border-gray-200 p-2">
+                <p className="font-mono text-brand">{t.name}</p>
+                <p className="mt-1 text-gray-500">{t.description?.slice(0, 80)}…</p>
               </li>
             ))}
           </ul>

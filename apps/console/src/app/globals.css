@@ -3,9 +3,76 @@
 @import "tailwindcss/utilities";
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --brand-orange: #ff7900;
+  --brand-black: #000000;
+  --surface-muted: #f4f4f4;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-[#f4f4f4] text-gray-900 antialiased;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded bg-black px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-900 disabled:opacity-50;
+  }
+
+  .btn-accent {
+    @apply rounded bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark disabled:opacity-50;
+  }
+
+  .btn-outline {
+    @apply rounded border border-black bg-white px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:opacity-50;
+  }
+
+  .input-field {
+    @apply w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black;
+  }
+
+  .card-live {
+    @apply border border-gray-300 bg-white shadow-none;
+  }
+
+  .nav-top-link {
+    @apply whitespace-nowrap px-1 py-4 text-sm text-white/90 transition-colors hover:text-white;
+  }
+
+  .nav-top-active {
+    @apply border-b-2 border-brand font-semibold text-white;
+  }
+
+  .sub-tab {
+    @apply relative inline-flex shrink-0 items-center gap-2 border border-transparent border-b-0 px-5 py-3 text-sm font-medium text-gray-500 transition-colors hover:text-black;
+  }
+
+  .sub-tab-active {
+    @apply -mb-px border border-gray-300 border-b-[#f4f4f4] bg-[#f4f4f4] font-semibold text-black;
+  }
+
+  .sub-tab-active::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-[3px] bg-brand;
+  }
+
+  .sub-tab-add {
+    @apply mb-1.5 ml-2 inline-flex shrink-0 items-center rounded border border-dashed border-gray-400 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-brand hover:bg-brand-light hover:text-brand;
+  }
+
+  .sub-tab-add-active {
+    @apply border-brand border-solid bg-brand-light font-semibold text-brand;
+  }
+
+  .dashboard-sub-bar {
+    @apply border-b border-gray-300 bg-[#f4f4f4] px-4 lg:px-6;
+  }
+
+  .card-tab {
+    @apply border-b-2 border-transparent px-4 py-3 text-sm text-gray-600 hover:text-black;
+  }
+
+  .card-tab-active {
+    @apply border-brand font-semibold text-black;
+  }
 }

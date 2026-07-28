@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lorawan-platform/platform-api/internal/auth"
 	"github.com/lorawan-platform/platform-api/internal/keycloak"
 	"github.com/lorawan-platform/platform-api/internal/store"
 )
@@ -176,6 +177,23 @@ func (d Deps) getTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d Deps) myTenant(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if ok && hasAnyRole(user, "platform-admin") {
+		tid, ok := d.adminSelectedPlatformTenantID(r)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "tenantId required for platform-admin")
+			return
+		}
+		tenant, err := d.TenantStore.GetByID(r.Context(), *tid)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "tenant not found")
+			return
+		}
+		plan, _ := d.Plans.Get(r.Context(), tenant.Plan)
+		writeJSON(w, http.StatusOK, tenantPublic(tenant, plan))
+		return
+	}
+
 	csID := d.effectiveTenantID(r)
 	if csID == "" {
 		writeError(w, http.StatusNotFound, "no tenant in session")

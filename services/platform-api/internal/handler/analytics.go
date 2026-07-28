@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -126,4 +127,31 @@ func (d Deps) analyticsDeviceRadio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)
+}
+
+func (d Deps) analyticsDevicesTraffic(w http.ResponseWriter, r *http.Request) {
+	scope, ok := d.dataTenantScope(w, r)
+	if !ok {
+		return
+	}
+	hours := queryInt(r, "hours", 24)
+	raw := r.URL.Query().Get("devEuis")
+	var devEUIs []string
+	for _, part := range strings.Split(raw, ",") {
+		e := strings.ToLower(strings.TrimSpace(part))
+		if e != "" {
+			devEUIs = append(devEUIs, e)
+		}
+	}
+	for _, devEUI := range devEUIs {
+		if !d.assertDeviceInTenant(w, r, devEUI) {
+			return
+		}
+	}
+	points, err := d.Analytics.TrafficHourlyForDevices(r.Context(), scope, devEUIs, hours)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"points": points})
 }

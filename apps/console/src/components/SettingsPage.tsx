@@ -51,28 +51,28 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-6">
       <PageHeader title="Paramètres" subtitle="Compte, tenant, clés API et facturation" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Profil utilisateur">
           <dl className="space-y-3 text-sm">
-            <div className="flex justify-between"><dt className="text-slate-400">Email</dt><dd>{user?.email || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-400">Rôles</dt><dd>{user?.roles?.join(", ") || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-400">Organisation</dt><dd>{tenant?.name || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">Email</dt><dd>{user?.email || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">Rôles</dt><dd>{user?.roles?.join(", ") || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">Organisation</dt><dd>{tenant?.name || "—"}</dd></div>
           </dl>
         </Section>
 
         <Section title="Tenant">
           {tenant ? (
             <dl className="space-y-3 text-sm">
-              <div className="flex justify-between"><dt className="text-slate-400">Nom</dt><dd>{tenant.name}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">Slug</dt><dd>{tenant.slug}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">Plan</dt><dd className="text-emerald-300">{tenant.plan}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">Statut</dt><dd>{tenant.status}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-600">Nom</dt><dd>{tenant.name}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-600">Slug</dt><dd>{tenant.slug}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-600">Plan</dt><dd className="text-brand">{tenant.plan}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-600">Statut</dt><dd>{tenant.status}</dd></div>
             </dl>
           ) : (
-            <p className="text-sm text-slate-500">Tenant non trouvé — contactez l&apos;administrateur.</p>
+            <p className="text-sm text-gray-500">Tenant non trouvé — contactez l&apos;administrateur.</p>
           )}
         </Section>
 
@@ -81,41 +81,41 @@ export default function SettingsPage() {
             <Section title="Billing (mois en cours)">
               {billing ? (
                 <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between"><dt className="text-slate-400">Période</dt><dd>{billing.period}</dd></div>
-                  <div className="flex justify-between"><dt className="text-slate-400">Uplinks</dt><dd>{billing.uplinkCount.toLocaleString("fr-FR")}</dd></div>
-                  <div className="flex justify-between"><dt className="text-slate-400">Estimation</dt><dd className="text-lg font-semibold text-emerald-300">{billing.estimatedEur} €</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-600">Période</dt><dd>{billing.period}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-600">Uplinks</dt><dd>{billing.uplinkCount.toLocaleString("fr-FR")}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-600">Estimation</dt><dd className="text-lg font-semibold text-brand">{billing.estimatedEur} €</dd></div>
                 </dl>
               ) : (
-                <p className="text-sm text-slate-500">Données billing indisponibles.</p>
+                <p className="text-sm text-gray-500">Données billing indisponibles.</p>
               )}
             </Section>
 
             <Section title="Clés API">
               <form onSubmit={createKey} className="mb-4 flex gap-2">
-                <input className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Nom de la clé" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} required />
-                <button type="submit" className="rounded-lg bg-emerald-700 px-3 py-2 text-sm">Créer</button>
+                <input className="flex-1 rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" placeholder="Nom de la clé" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} required />
+                <button type="submit" className="rounded-lg bg-brand px-3 py-2 text-sm">Créer</button>
               </form>
               {createdKey && (
-                <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 text-xs font-mono text-amber-100">
+                <p className="mb-3 rounded-lg border border-brand-muted bg-brand-light p-3 text-xs font-mono text-gray-800">
                   Copiez maintenant : {createdKey}
                 </p>
               )}
-              {keyError && <p className="mb-2 text-xs text-red-400">{keyError}</p>}
+              {keyError && <p className="mb-2 text-xs text-red-600">{keyError}</p>}
               <ul className="space-y-2 text-sm">
                 {keys.filter((k) => !k.revokedAt).map((k) => (
-                  <li key={k.id} className="flex items-center justify-between rounded border border-slate-800 px-3 py-2">
-                    <span>{k.name} <span className="font-mono text-xs text-slate-500">lwp_{k.prefix}_…</span></span>
-                    <button type="button" className="text-xs text-red-400" onClick={() => revokeKey(k.id)}>Révoquer</button>
+                  <li key={k.id} className="flex items-center justify-between rounded border border-gray-200 px-3 py-2">
+                    <span>{k.name} <span className="font-mono text-xs text-gray-500">lwp_{k.prefix}_…</span></span>
+                    <button type="button" className="text-xs text-red-600" onClick={() => revokeKey(k.id)}>Révoquer</button>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-slate-500">Header : <code>X-API-Key: lwp_…</code></p>
+              <p className="mt-2 text-xs text-gray-500">Header : <code>X-API-Key: lwp_…</code></p>
             </Section>
           </>
         )}
 
         <Section title="Intégrations">
-          <ul className="space-y-2 text-sm text-slate-300">
+          <ul className="space-y-2 text-sm text-gray-700">
             <li>MQTT broker — contactez votre administrateur pour les paramètres de connexion</li>
             <li>Webhooks règles → configurable dans /rules</li>
             <li>API REST → clés dans cette page (tenant-admin)</li>

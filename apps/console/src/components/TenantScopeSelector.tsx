@@ -7,7 +7,11 @@ import { useClientAuth } from "@/lib/useClientAuth";
 
 type Tenant = { id: string; name: string; slug: string; status?: string };
 
-export default function TenantScopeSelector() {
+type Props = {
+  variant?: "sidebar" | "header";
+};
+
+export default function TenantScopeSelector({ variant = "sidebar" }: Props) {
   const { isAdmin } = useClientAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -27,11 +31,32 @@ export default function TenantScopeSelector() {
 
   if (!isAdmin || tenants.length === 0) return null;
 
-  return (
-    <div className="border-b border-slate-800 px-4 py-3">
-      <label className="mb-1 block text-[10px] uppercase tracking-widest text-slate-500">Tenant actif</label>
+  if (variant === "header") {
+    return (
       <select
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs"
+        className="max-w-[130px] truncate rounded border border-white/30 bg-black px-2 py-1 text-xs text-white"
+        value={selected}
+        onChange={(e) => {
+          setSelected(e.target.value);
+          setAdminTenantScope(e.target.value || null);
+          window.location.reload();
+        }}
+        title="Tenant actif"
+      >
+        {tenants.map((t) => (
+          <option key={t.id} value={t.id} className="text-black">
+            {t.slug}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <div className="border-b border-gray-200 px-4 py-3">
+      <label className="mb-1 block text-[10px] uppercase tracking-widest text-gray-500">Tenant actif</label>
+      <select
+        className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs"
         value={selected}
         onChange={(e) => {
           setSelected(e.target.value);

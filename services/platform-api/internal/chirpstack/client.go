@@ -57,6 +57,26 @@ func (c *Client) ListDeviceProfiles(ctx context.Context, tenantID string, limit 
 	return c.getJSON(ctx, "/api/device-profiles?"+q.Encode())
 }
 
+func (c *Client) CreateDeviceProfile(ctx context.Context, tenantID, name, description string) (map[string]any, error) {
+	body := map[string]any{
+		"deviceProfile": map[string]any{
+			"tenantId":          tenantID,
+			"name":              name,
+			"description":       description,
+			"region":            "EU868",
+			"macVersion":        "1.0.3",
+			"regParamsRevision": "A",
+			"supportsOtaa":      true,
+			"supportsClassB":    false,
+			"supportsClassC":    false,
+			"allowRoaming":      false,
+			"uplinkInterval":    3600,
+			"adrAlgorithmId":    "default",
+		},
+	}
+	return c.postJSON(ctx, "/api/device-profiles", body)
+}
+
 // ListDevices agrège les devices par application (ChirpStack v4 exige applicationId).
 func (c *Client) ListDevices(ctx context.Context, tenantID string, limit int) (map[string]any, error) {
 	if tenantID == "" {
@@ -285,7 +305,12 @@ func (c *Client) DeleteTenant(ctx context.Context, tenantID string) error {
 func (c *Client) GetDeviceEvents(ctx context.Context, devEUI string, limit int) (map[string]any, error) {
 	q := url.Values{}
 	q.Set("limit", fmt.Sprintf("%d", limit))
-	return c.getJSON(ctx, "/api/devices/"+url.PathEscape(devEUI)+"/events?"+q.Encode())
+	data, err := c.getJSON(ctx, "/api/devices/"+url.PathEscape(devEUI)+"/events?"+q.Encode())
+	if err != nil && strings.Contains(err.Error(), "404") {
+		// ChirpStack v4 REST n'expose plus /events — retour gracieux pour la console.
+		return map[string]any{"totalCount": 0, "result": []any{}}, nil
+	}
+	return data, err
 }
 
 func (c *Client) Ping(ctx context.Context, tenantID string) error {

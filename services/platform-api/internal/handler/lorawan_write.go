@@ -158,9 +158,11 @@ func (d Deps) deleteDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 type createGatewayRequest struct {
-	GatewayID   string `json:"gatewayId"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	GatewayID        string `json:"gatewayId"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	RfScanSupported  *bool  `json:"rfScanSupported"`
+	RfScanModel      string `json:"rfScanModel"`
 }
 
 func (d Deps) createGateway(w http.ResponseWriter, r *http.Request) {
@@ -186,13 +188,34 @@ func (d Deps) createGateway(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	if req.RfScanSupported != nil || req.RfScanModel != "" {
+		tags := map[string]any{}
+		if req.RfScanSupported != nil {
+			if *req.RfScanSupported {
+				tags["rfScanSupported"] = "true"
+			} else {
+				tags["rfScanSupported"] = "false"
+			}
+		}
+		if req.RfScanModel != "" {
+			tags["rfScanModel"] = req.RfScanModel
+		}
+		if len(tags) > 0 {
+			if updated, err := d.ChirpStack.UpdateGateway(r.Context(), req.GatewayID, map[string]any{"tags": tags}); err == nil {
+				data = updated
+			}
+		}
+	}
 	d.registerGatewayForTenant(r, req.GatewayID)
+	enrichGatewayResponse(data)
 	writeJSON(w, http.StatusCreated, data)
 }
 
 type updateGatewayRequest struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
+	Name            *string `json:"name"`
+	Description     *string `json:"description"`
+	RfScanSupported *bool   `json:"rfScanSupported"`
+	RfScanModel     *string `json:"rfScanModel"`
 }
 
 func (d Deps) updateGateway(w http.ResponseWriter, r *http.Request) {
@@ -216,11 +239,35 @@ func (d Deps) updateGateway(w http.ResponseWriter, r *http.Request) {
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
+	if req.RfScanSupported != nil || req.RfScanModel != nil {
+		current, err := d.ChirpStack.GetGateway(r.Context(), gatewayID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		gateway := gatewayMapFromResponse(current)
+		tags, _ := gateway["tags"].(map[string]any)
+		if tags == nil {
+			tags = map[string]any{}
+		}
+		if req.RfScanSupported != nil {
+			if *req.RfScanSupported {
+				tags["rfScanSupported"] = "true"
+			} else {
+				tags["rfScanSupported"] = "false"
+			}
+		}
+		if req.RfScanModel != nil {
+			tags["rfScanModel"] = *req.RfScanModel
+		}
+		updates["tags"] = tags
+	}
 	data, err := d.ChirpStack.UpdateGateway(r.Context(), gatewayID, updates)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	enrichGatewayResponse(data)
 	writeJSON(w, http.StatusOK, data)
 }
 

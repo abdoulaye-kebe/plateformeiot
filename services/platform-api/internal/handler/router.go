@@ -33,6 +33,8 @@ type Deps struct {
 	Rules                *store.RuleStore
 	NOC                  *store.NOCStore
 	Billing              *store.BillingStore
+	RfScan               *store.RfScanStore
+	CustomDashboards     *store.CustomDashboardStore
 	Auth                 *auth.Validator
 	TenantID             string
 	ChirpStackRESTURL    string
@@ -103,6 +105,11 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/gateways/{gatewayId}", deps.updateGateway)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Delete("/gateways/{gatewayId}", deps.deleteGateway)
 
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/gateways/{gatewayId}/rf-scan", deps.getGatewayRfScan)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/rf-scan/request", deps.requestGatewayRfScan)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Get("/gateways/{gatewayId}/rf-scan/pending", deps.getGatewayRfScanPending)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/rf-scan/results", deps.uploadGatewayRfScanResults)
+
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Get("/chirpstack/tenants", deps.listChirpStackTenants)
 		})
 
@@ -110,6 +117,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/overview", deps.analyticsOverview)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/traffic", deps.analyticsTraffic)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{devEui}/radio", deps.analyticsDeviceRadio)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/traffic", deps.analyticsDevicesTraffic)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/anomalies", deps.listAnomaliesLicensed)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Patch("/anomalies/{id}/resolve", deps.resolveAnomaly)
 		})
@@ -137,6 +145,19 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Get("/subscription", deps.billingSubscription)
 			r.With(auth.RequireRoles("platform-admin")).Post("/aggregate", deps.billingAggregate)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Post("/stripe/checkout", deps.createStripeCheckout)
+		})
+
+		r.Route("/dashboards", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/", deps.listCustomDashboards)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/", deps.createCustomDashboard)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/{id}", deps.getCustomDashboard)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/{id}", deps.updateCustomDashboard)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Delete("/{id}", deps.deleteCustomDashboard)
+		})
+
+		r.Route("/onboarding", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/status", deps.getOnboardingStatus)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/bootstrap", deps.onboardingBootstrap)
 		})
 	})
 
@@ -250,6 +271,7 @@ func (d Deps) listGateways(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	enrichGatewayList(data)
 	writeJSON(w, http.StatusOK, data)
 }
 
@@ -263,6 +285,7 @@ func (d Deps) getGateway(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	enrichGatewayResponse(data)
 	writeJSON(w, http.StatusOK, data)
 }
 

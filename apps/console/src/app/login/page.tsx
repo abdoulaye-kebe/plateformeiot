@@ -3,6 +3,15 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { login, saveSession } from "@/lib/auth";
+import BrandLogo from "@/components/BrandLogo";
+import TopBar from "@/components/TopBar";
+
+const FEATURES = [
+  "Connectivité LoRaWAN simple, évolutive et sécurisée",
+  "Gestion devices, gateways et applications",
+  "Analytics, NOC et détection d'anomalies",
+  "Agent IA pour diagnostics et opérations",
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,46 +36,66 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl">
-        <p className="text-xs uppercase tracking-widest text-emerald-400">Lorawan Platform</p>
-        <h1 className="mt-2 text-2xl font-semibold">Connexion NOC</h1>
-        <p className="mt-2 text-sm text-slate-400">Keycloak · realm lorawan</p>
+    <div className="flex min-h-screen flex-col">
+      <TopBar />
+      <div className="flex flex-1">
+        {/* Hero noir — style Live Objects */}
+        <section className="hidden w-1/2 flex-col justify-center bg-black px-12 py-16 lg:flex">
+          <BrandLogo variant="dark" subtitle="Sonatel · Orange IoT" />
+          <h1 className="mt-10 text-3xl font-bold leading-tight text-white">
+            Connectivité IoT LoRaWAN
+            <br />
+            simple, évolutive et sécurisée
+          </h1>
+          <ul className="mt-8 space-y-3">
+            {FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-3 text-sm text-white/90">
+                <span className="mt-0.5 text-brand">✓</span>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
-          <label className="block text-sm">
-            <span className="text-slate-400">Utilisateur</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-400">Mot de passe</span>
-            <input
-              type="password"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-emerald-600 py-2.5 font-medium hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {loading ? "Connexion…" : "Se connecter"}
-          </button>
-        </form>
+        {/* Formulaire */}
+        <section className="flex w-full flex-col items-center justify-center bg-neutral-100 px-6 py-12 lg:w-1/2">
+          <div className="w-full max-w-md">
+            <div className="mb-8 lg:hidden">
+              <BrandLogo variant="light" subtitle="Sonatel · Orange IoT" />
+            </div>
 
-        <p className="mt-6 text-xs text-slate-500">
-          Comptes démo : admin/admin · operator/operator · viewer/viewer
-        </p>
+            <div className="card-live">
+              <h2 className="text-2xl font-bold text-black">Connexion</h2>
+              <p className="mt-2 text-sm text-gray-600">Accédez à votre portail LoRaWAN SaaS</p>
+
+              <form onSubmit={onSubmit} className="mt-8 space-y-5">
+                <label className="block text-sm">
+                  <span className="font-medium text-gray-700">Utilisateur</span>
+                  <input className="input-field mt-1.5" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-medium text-gray-700">Mot de passe</span>
+                  <input
+                    type="password"
+                    className="input-field mt-1.5"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </label>
+                {error && <p className="text-sm text-red-600">{error}</p>}
+                <button type="submit" disabled={loading} className="btn-outline w-full">
+                  {loading ? "Connexion…" : "Se connecter"}
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-xs text-gray-500">
+                Comptes démo : admin/admin · operator/operator · viewer/viewer
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
-    </main>
+    </div>
   );
 }
