@@ -3,7 +3,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PG="docker compose -f $ROOT/docker-compose.yml exec -T platform-postgres psql -U platform -d platform -f -"
+# shellcheck source=lib/compose.sh
+source "$ROOT/scripts/lib/compose.sh"
+cd "$ROOT"
+
+PG="$COMPOSE_CMD exec -T platform-postgres psql -U platform -d platform -f -"
 
 run() {
   local label="$1" file="$2"

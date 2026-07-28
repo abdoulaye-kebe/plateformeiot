@@ -3,42 +3,46 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/compose.sh
+source "$ROOT/scripts/lib/compose.sh"
 cd "$ROOT"
 
 echo "=== Réparation déploiement ==="
 
 echo "→ État actuel"
-docker compose ps || true
+compose ps || true
 
 echo ""
-echo "→ Logs platform-postgres (dernières 50 lignes)"
-docker compose logs --tail=50 platform-postgres || true
+echo "→ Logs platform-postgres (dernières 30 lignes)"
+compose logs --tail=30 platform-postgres || true
 
-PG_STATUS="$(docker compose ps platform-postgres --format '{{.Status}}' 2>/dev/null || true)"
-if echo "$PG_STATUS" | grep -qiE 'exited|dead|unhealthy| restarting'; then
+PG_STATUS="$(compose ps platform-postgres --format '{{.Status}}' 2>/dev/null || true)"
+if echo "$PG_STATUS" | grep -qiE 'exited|dead|unhealthy|restarting'; then
   echo ""
   echo "→ Redémarrage platform-postgres..."
-  docker compose up -d platform-postgres
+  compose up -d platform-postgres
 fi
 
 bash "$ROOT/scripts/wait-postgres.sh" 180
 
+echo "→ Migrations SQL..."
+bash "$ROOT/scripts/migrate-all.sh"
+
 echo "→ Démarrage ChirpStack + Keycloak..."
-docker compose up -d postgres redis mosquitto \
+compose up -d postgres redis mosquitto \
   chirpstack chirpstack-rest-api \
   chirpstack-gateway-bridge chirpstack-gateway-bridge-basicstation \
   keycloak
 
 sleep 15
 
-echo "→ Démarrage services applicatifs..."
-docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
+bash "$ROOT/scripts/setup-chirpstack.sh" || true
+bash "$ROOT/scripts/setup-keycloak.sh" || true
 
-bash "$ROOT/scripts/setup-chirpstack.sh" 2>/dev/null || true
-bash "$ROOT/scripts/setup-keycloak.sh" 2>/dev/null || true
-bash "$ROOT/scripts/migrate-all.sh" 2>/dev/null || true
+echo "→ Démarrage services applicatifs..."
+compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
 
 echo ""
-docker compose ps
+compose ps
 echo ""
 echo "✓ Réparation terminée — testez : curl -s http://localhost:8081/health"

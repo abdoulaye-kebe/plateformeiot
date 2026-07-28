@@ -100,7 +100,7 @@ bash "$ROOT/scripts/wait-postgres.sh" 60 || true
 
 bash "$ROOT/scripts/setup-chirpstack.sh" || true
 bash "$ROOT/scripts/setup-keycloak.sh" || true
-bash "$ROOT/scripts/migrate-all.sh" || true
+bash "$ROOT/scripts/migrate-all.sh"
 
 docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
 
