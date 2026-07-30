@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 
 from mcp_server.chirpstack_client import ChirpStackClient
 from mcp_server.radio import parse_radio_from_events, summarize_link_metrics
+from mcp_server.tenant_context import chirpstack_tenant_id
 
 mcp = FastMCP(
     name="lorawan-platform",
@@ -423,7 +424,32 @@ def platform_config() -> dict[str, str]:
         "chirpstackRestUrl": cs.base_url,
         "tenantId": cs.tenant_id or "(non configuré)",
         "mcpVersion": "0.2.0",
-        "tools": "read, write, metrics, diagnostics",
+        "tools": "read, write, metrics, diagnostics, integrations",
+        "sseEndpoint": f"http://{os.getenv('MCP_PUBLIC_HOST', 'localhost')}:{os.getenv('MCP_PORT', '8095')}/sse",
+    }
+
+
+@mcp.tool()
+async def ingest_lorawan_uplink(event: dict[str, Any]) -> dict[str, Any]:
+    """Reçoit un événement uplink LoRaWAN (connecteur MCP entrant / test intégration)."""
+    dev_eui = ""
+    if isinstance(event.get("device"), dict):
+        dev_eui = str(event["device"].get("devEui") or "")
+    return {
+        "accepted": True,
+        "tenantId": cs.tenant_id or chirpstack_tenant_id.get() or "",
+        "devEui": dev_eui,
+        "event": event.get("event", "uplink"),
+    }
+
+
+@mcp.tool()
+async def lorawan_mcp_ping(message: str = "ping") -> dict[str, str]:
+    """Test de connectivité MCP depuis une application métier."""
+    return {
+        "status": "ok",
+        "message": message,
+        "tenantId": cs.tenant_id or chirpstack_tenant_id.get() or "",
     }
 
 

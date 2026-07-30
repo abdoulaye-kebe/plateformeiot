@@ -43,7 +43,7 @@ echo "→ Rebuild console (URLs publiques)..."
 bash "$ROOT/scripts/rebuild-console.sh"
 
 echo "→ Démarrage services applicatifs..."
-compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker connector-worker
+compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker connector-worker connector-mcp-worker
 
 echo ""
 compose ps

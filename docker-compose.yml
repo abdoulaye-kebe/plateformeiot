@@ -113,6 +113,7 @@ services:
       KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       AGENT_HTTP_URL: http://ai-agent:8096
+      CONNECTOR_MCP_URL: http://connector-mcp-worker:8097
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: platform
       MINIO_SECRET_KEY: platform123
@@ -190,6 +191,21 @@ services:
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
       NATS_URL: nats://nats:4222
 
+  connector-mcp-worker:
+    build:
+      context: ./services/connector-mcp-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      NATS_URL: nats://nats:4222
+      CONNECTOR_MCP_HTTP_PORT: "8097"
+
   ai-agent:
     build:
       context: ./services/ai-agent
@@ -212,6 +228,7 @@ services:
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "8095"
       MCP_SERVER_URL: http://127.0.0.1:8095/sse
+      MCP_PUBLIC_HOST: ${KEYCLOAK_PUBLIC_HOST:-localhost}
       AGENT_HTTP_PORT: "8096"
     ports:
       - "8095:8095"

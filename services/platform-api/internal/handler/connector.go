@@ -251,13 +251,13 @@ func (d Deps) testConnector(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sample := sampleUplinkEvent(scope.String())
-	res := dispatchConnectorTest(r.Context(), c, sample)
+	res := dispatchConnectorTest(r.Context(), *scope, c, sample)
 	writeJSON(w, http.StatusOK, res)
 }
 
 func validateConnectorRequest(req connectorRequest) error {
-	if req.Type != "" && req.Type != "http" && req.Type != "mqtt" {
-		return errors.New("type must be http or mqtt")
+	if req.Type != "" && req.Type != "http" && req.Type != "mqtt" && req.Type != "mcp" {
+		return errors.New("type must be http, mqtt or mcp")
 	}
 	if req.Type == "http" {
 		var cfg struct {
@@ -277,6 +277,17 @@ func validateConnectorRequest(req connectorRequest) error {
 		}
 		if cfg.BrokerURL == "" || cfg.Topic == "" {
 			return errors.New("mqtt config requires brokerUrl and topic")
+		}
+	}
+	if req.Type == "mcp" {
+		var cfg struct {
+			ServerURL string `json:"serverUrl"`
+		}
+		if err := json.Unmarshal(req.Config, &cfg); err != nil {
+			return errors.New("invalid mcp config")
+		}
+		if cfg.ServerURL == "" {
+			return errors.New("mcp config requires serverUrl (SSE endpoint)")
 		}
 	}
 	return nil
@@ -310,12 +321,14 @@ type connectorTestResult struct {
 	Detail  string `json:"detail,omitempty"`
 }
 
-func dispatchConnectorTest(ctx context.Context, c store.Connector, payload map[string]any) connectorTestResult {
+func dispatchConnectorTest(ctx context.Context, tenantID string, c store.Connector, payload map[string]any) connectorTestResult {
 	switch c.Type {
 	case "http":
 		return testHTTPConnector(ctx, c.Config, payload)
 	case "mqtt":
 		return testMQTTConnector(ctx, c.Config, payload)
+	case "mcp":
+		return testMCPConnectorHTTP(ctx, scope.String(), c.Config, payload)
 	default:
 		return connectorTestResult{Success: false, Detail: "unknown type"}
 	}

@@ -1,0 +1,1 @@
+"""Connecteur MCP worker package."""

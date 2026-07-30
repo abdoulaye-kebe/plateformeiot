@@ -92,7 +92,7 @@ export NEXT_PUBLIC_PLATFORM_API_URL="${BASE}:${API_PORT}"
 export NEXT_PUBLIC_KEYCLOAK_URL="${BASE}:${KEYCLOAK_PORT}"
 export NEXT_PUBLIC_CHIRPSTACK_URL="${BASE}:${CHIRPSTACK_UI_PORT}"
 
-docker compose build --pull console platform-api ai-agent mqtt-ingestion rule-engine anomaly-worker connector-worker
+docker compose build --pull console platform-api ai-agent mqtt-ingestion rule-engine anomaly-worker connector-worker connector-mcp-worker
 
 echo "→ Phase 1 : bases de données et infra..."
 docker compose up -d platform-postgres postgres redis platform-redis mosquitto nats minio mailpit
@@ -106,7 +106,7 @@ docker compose up -d chirpstack chirpstack-rest-api \
 sleep 15
 
 echo "→ Phase 3 : services applicatifs..."
-docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker
+docker compose up -d platform-api console ai-agent mqtt-ingestion rule-engine anomaly-worker connector-worker connector-mcp-worker
 
 echo "→ Attente Postgres (vérif)..."
 bash "$ROOT/scripts/wait-postgres.sh" 60 || true

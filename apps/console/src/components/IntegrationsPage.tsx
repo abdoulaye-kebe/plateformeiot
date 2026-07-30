@@ -9,7 +9,7 @@ import Link from "next/link";
 type Connector = {
   id: string;
   name: string;
-  type: "http" | "mqtt";
+  type: "http" | "mqtt" | "mcp";
   enabled: boolean;
   events: string[];
   config: Record<string, unknown>;
@@ -26,6 +26,16 @@ const EMPTY_MQTT = {
   qos: 1,
   tlsInsecure: false,
 };
+const EMPTY_MCP = {
+  serverUrl: "http://localhost:3000/mcp/sse",
+  toolName: "ingest_lorawan_uplink",
+};
+
+function platformMcpUrl() {
+  if (typeof window === "undefined") return "http://localhost:8095/sse";
+  const host = window.location.hostname;
+  return `http://${host}:8095/sse`;
+}
 
 export default function IntegrationsPage() {
   const { isTenantAdmin, write } = useClientAuth();
@@ -33,10 +43,11 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [formType, setFormType] = useState<"http" | "mqtt">("http");
+  const [formType, setFormType] = useState<"http" | "mqtt" | "mcp">("http");
   const [formName, setFormName] = useState("");
   const [httpCfg, setHttpCfg] = useState(EMPTY_HTTP);
   const [mqttCfg, setMqttCfg] = useState(EMPTY_MQTT);
+  const [mcpCfg, setMcpCfg] = useState(EMPTY_MCP);
   const [testResult, setTestResult] = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
@@ -54,7 +65,7 @@ export default function IntegrationsPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
-    const config = formType === "http" ? httpCfg : mqttCfg;
+    const config = formType === "http" ? httpCfg : formType === "mqtt" ? mqttCfg : mcpCfg;
     const { error: err } = await apiMutate("/api/v1/connectors", "POST", {
       name: formName,
       type: formType,
@@ -69,7 +80,7 @@ export default function IntegrationsPage() {
     setShowForm(false);
     setFormName("");
     setHttpCfg(EMPTY_HTTP);
-    setMqttCfg(EMPTY_MQTT);
+    setMcpCfg(EMPTY_MCP);
     load();
   }
 
@@ -111,7 +122,7 @@ export default function IntegrationsPage() {
     <div className="p-4 lg:p-6">
       <PageHeader
         title="Intégrations métier"
-        subtitle="Connecteurs sortants HTTP/HTTPS et MQTT/MQTTS — chaque uplink LoRaWAN est transmis à vos applications"
+        subtitle="Connecteurs HTTP, MQTT et MCP — chaque uplink LoRaWAN est transmis à vos applications métier"
         action={
           write ? (
             <BtnAccent type="button" onClick={() => setShowForm(!showForm)}>
@@ -120,6 +131,39 @@ export default function IntegrationsPage() {
           ) : undefined
         }
       />
+
+      <Section title="Connecteur MCP entrant (plateforme)">
+        <p className="text-sm text-gray-700">
+          Vos applications IA (Cursor, Claude Desktop, agents custom) peuvent se connecter au{" "}
+          <strong>serveur MCP LoRaWAN</strong> de la plateforme pour lire/écrire devices, gateways et métriques.
+        </p>
+        <dl className="mt-4 space-y-2 rounded-lg border border-gray-200 bg-neutral-50 p-4 text-sm">
+          <div>
+            <dt className="font-medium text-gray-600">Endpoint SSE</dt>
+            <dd className="mt-1 font-mono text-xs break-all text-black">{platformMcpUrl()}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-gray-600">Transport</dt>
+            <dd className="font-mono text-xs">SSE (Model Context Protocol)</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-gray-600">Outils disponibles</dt>
+            <dd className="text-xs text-gray-600">
+              list_devices, list_gateways, get_device, ingest_lorawan_uplink, lorawan_mcp_ping, …
+            </dd>
+          </div>
+        </dl>
+        <pre className="mt-3 overflow-x-auto rounded-lg border border-gray-200 bg-black p-3 text-xs text-green-400">{`{
+  "mcpServers": {
+    "lorawan-platform": {
+      "url": "${platformMcpUrl()}",
+      "env": {
+        "CHIRPSTACK_TENANT_ID": "<votre-tenant-chirpstack>"
+      }
+    }
+  }
+}`}</pre>
+      </Section>
 
       <div className="mb-6 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
         <p className="font-medium">Format du message (JSON)</p>
@@ -152,10 +196,11 @@ export default function IntegrationsPage() {
                 <select
                   className="input-field"
                   value={formType}
-                  onChange={(e) => setFormType(e.target.value as "http" | "mqtt")}
+                  onChange={(e) => setFormType(e.target.value as "http" | "mqtt" | "mcp")}
                 >
                   <option value="http">HTTP / HTTPS (webhook)</option>
                   <option value="mqtt">MQTT / MQTTS</option>
+                  <option value="mcp">MCP (serveur externe SSE)</option>
                 </select>
               </label>
             </div>
@@ -182,7 +227,7 @@ export default function IntegrationsPage() {
                   />
                 </label>
               </div>
-            ) : (
+            ) : formType === "mqtt" ? (
               <div className="grid gap-3 lg:grid-cols-2">
                 <label className="text-sm lg:col-span-2">
                   <span className="mb-1 block font-medium">Broker URL</span>
@@ -218,6 +263,32 @@ export default function IntegrationsPage() {
                   TLS insecure (POC uniquement)
                 </label>
               </div>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-2">
+                <label className="text-sm lg:col-span-2">
+                  <span className="mb-1 block font-medium">URL serveur MCP (SSE)</span>
+                  <input
+                    className="input-field font-mono text-xs"
+                    value={mcpCfg.serverUrl}
+                    onChange={(e) => setMcpCfg({ ...mcpCfg, serverUrl: e.target.value })}
+                    required
+                    placeholder="http://app-metier:8080/mcp/sse"
+                  />
+                </label>
+                <label className="text-sm lg:col-span-2">
+                  <span className="mb-1 block font-medium">Nom de l&apos;outil MCP</span>
+                  <input
+                    className="input-field font-mono text-xs"
+                    value={mcpCfg.toolName}
+                    onChange={(e) => setMcpCfg({ ...mcpCfg, toolName: e.target.value })}
+                    required
+                    placeholder="ingest_lorawan_uplink"
+                  />
+                  <span className="mt-1 block text-xs text-gray-500">
+                    Outil appelé sur le serveur MCP externe à chaque uplink (args: event, eventJson)
+                  </span>
+                </label>
+              </div>
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -248,7 +319,9 @@ export default function IntegrationsPage() {
                     <p className="mt-1 font-mono text-xs text-gray-500">
                       {c.type === "http"
                         ? String((c.config as { url?: string }).url ?? "")
-                        : `${(c.config as { brokerUrl?: string }).brokerUrl ?? ""} → ${(c.config as { topic?: string }).topic ?? ""}`}
+                        : c.type === "mqtt"
+                          ? `${(c.config as { brokerUrl?: string }).brokerUrl ?? ""} → ${(c.config as { topic?: string }).topic ?? ""}`
+                          : `${(c.config as { serverUrl?: string }).serverUrl ?? ""} → tool ${(c.config as { toolName?: string }).toolName ?? "ingest_lorawan_uplink"}`}
                     </p>
                     {testResult[c.id] && <p className="mt-2 text-xs text-gray-600">{testResult[c.id]}</p>}
                   </div>
