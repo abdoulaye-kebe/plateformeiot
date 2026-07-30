@@ -29,7 +29,11 @@ export default function LoginPage() {
       saveSession(session);
       router.replace("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de connexion");
+      if (err instanceof Error && err.name === "TimeoutError") {
+        setError("Keycloak injoignable — vérifiez le port 8082 et la configuration");
+      } else {
+        setError(err instanceof Error ? err.message : "Erreur de connexion");
+      }
     } finally {
       setLoading(false);
     }

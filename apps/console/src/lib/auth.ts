@@ -59,6 +59,7 @@ export async function login(username: string, password: string): Promise<AuthSes
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
