@@ -162,6 +162,8 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 			SNR:           row.SNR,
 			DR:            row.DR,
 			FPort:         row.FPort,
+			FCnt:          row.FCnt,
+			Data:          msg.Data,
 		}
 		if tenantID != nil {
 			event.TenantID = tenantID.String()
@@ -264,4 +266,6 @@ type UplinkEvent struct {
 	SNR           float64   `json:"snr"`
 	DR            int       `json:"dr"`
 	FPort         int       `json:"fPort"`
+	FCnt          int64     `json:"fCnt"`
+	Data          string    `json:"data,omitempty"`
 }

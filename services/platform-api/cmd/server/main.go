@@ -44,6 +44,7 @@ func main() {
 	billingStore := store.NewBillingStore(db)
 	rfScanStore := store.NewRfScanStore(db)
 	customDashboardStore := store.NewCustomDashboardStore(db)
+	connectorStore := store.NewConnectorStore(db)
 	csClient := chirpstack.NewClient(cfg.ChirpStackRESTURL, cfg.ChirpStackAPIToken)
 	kcClient := keycloak.NewClient(keycloak.Config{
 		AdminURL:  cfg.KeycloakAdminURL,
@@ -92,6 +93,7 @@ func main() {
 		Billing:              billingStore,
 		RfScan:               rfScanStore,
 		CustomDashboards:     customDashboardStore,
+		Connectors:           connectorStore,
 		Auth:                 validator,
 		ChirpStack:           csClient,
 		TenantID:             cfg.ChirpStackTenantID,

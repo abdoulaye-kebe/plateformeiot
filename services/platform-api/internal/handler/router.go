@@ -37,6 +37,7 @@ type Deps struct {
 	Billing              *store.BillingStore
 	RfScan               *store.RfScanStore
 	CustomDashboards     *store.CustomDashboardStore
+	Connectors           *store.ConnectorStore
 	Auth                 *auth.Validator
 	TenantID             string
 	ChirpStackRESTURL    string
@@ -160,6 +161,14 @@ func NewRouter(deps Deps) http.Handler {
 		r.Route("/onboarding", func(r chi.Router) {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/status", deps.getOnboardingStatus)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/bootstrap", deps.onboardingBootstrap)
+		})
+
+		r.Route("/connectors", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/", deps.listConnectors)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/", deps.createConnector)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/{id}", deps.updateConnector)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/{id}", deps.deleteConnector)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/{id}/test", deps.testConnector)
 		})
 	})
 

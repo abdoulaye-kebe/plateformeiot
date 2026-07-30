@@ -176,6 +176,20 @@ services:
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
       NATS_URL: nats://nats:4222
 
+  connector-worker:
+    build:
+      context: ./services/connector-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      NATS_URL: nats://nats:4222
+
   ai-agent:
     build:
       context: ./services/ai-agent

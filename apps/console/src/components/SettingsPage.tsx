@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
@@ -115,10 +116,15 @@ export default function SettingsPage() {
         )}
 
         <Section title="Intégrations">
-          <ul className="space-y-2 text-sm text-gray-700">
-            <li>MQTT broker — contactez votre administrateur pour les paramètres de connexion</li>
-            <li>Webhooks règles → configurable dans /rules</li>
-            <li>API REST → clés dans cette page (tenant-admin)</li>
+          <p className="mb-3 text-sm text-gray-700">
+            Connecteurs HTTP/HTTPS et MQTT/MQTTS vers vos applications métier — chaque uplink LoRaWAN est transmis automatiquement.
+          </p>
+          <Link href="/integrations" className="text-sm font-medium text-brand hover:underline">
+            Gérer les connecteurs →
+          </Link>
+          <ul className="mt-4 space-y-1 text-xs text-gray-500">
+            <li>API REST → clés ci-dessus</li>
+            <li>Webhooks conditionnels → /rules</li>
           </ul>
         </Section>
       </div>

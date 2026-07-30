@@ -70,6 +70,7 @@ const MAIN_NAV: NavItem[] = [
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
     match: (p) =>
       p.startsWith("/settings") ||
+      p.startsWith("/integrations") ||
       p.startsWith("/billing") ||
       p.startsWith("/admin") ||
       p.startsWith("/fuota"),

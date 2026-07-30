@@ -20,6 +20,8 @@ type UplinkEvent struct {
 	SNR           float64   `json:"snr"`
 	DR            int       `json:"dr"`
 	FPort         int       `json:"fPort"`
+	FCnt          int64     `json:"fCnt"`
+	Data          string    `json:"data,omitempty"`
 }
 
 type Rule struct {

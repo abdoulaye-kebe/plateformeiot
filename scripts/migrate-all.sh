@@ -28,5 +28,6 @@ run "Billing interval" "$ROOT/infra/platform/postgres/007_billing_interval.sql"
 run "RF scan" "$ROOT/infra/platform/postgres/008_gateway_rf_scan.sql"
 run "Custom dashboards" "$ROOT/infra/platform/postgres/009_custom_dashboards.sql"
 run "Starter agent" "$ROOT/infra/platform/postgres/010_starter_agent_feature.sql"
+run "Connecteurs métier" "$ROOT/infra/platform/postgres/011_tenant_connectors.sql"
 
 echo "✓ Toutes les migrations appliquées"
