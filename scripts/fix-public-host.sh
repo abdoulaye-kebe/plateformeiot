@@ -9,19 +9,21 @@ source "$ROOT/scripts/lib/compose.sh"
 source "$ROOT/scripts/lib/public-host.sh"
 cd "$ROOT"
 
-PUBLIC_HOST="${PUBLIC_HOST:-}"
+PUBLIC_HOST="${1:-${PUBLIC_HOST:-}}"
 if [[ -z "$PUBLIC_HOST" ]]; then
   PUBLIC_HOST="$(detect_public_host)"
 fi
 
 if [[ -z "$PUBLIC_HOST" ]]; then
-  echo "✗ Impossible de détecter l'IP publique — exportez PUBLIC_HOST=52.212.191.28"
+  echo "✗ Impossible de détecter l'IP publique."
+  echo "  Usage : sudo bash scripts/fix-public-host.sh 52.212.191.28"
   exit 1
 fi
 
 if is_private_ip "$PUBLIC_HOST"; then
-  echo "⚠ IP privée détectée ($PUBLIC_HOST) — spécifiez l'IP publique :"
-  echo "  export PUBLIC_HOST=52.212.191.28 && sudo -E bash scripts/fix-public-host.sh"
+  echo "⚠ IP privée détectée ($PUBLIC_HOST)"
+  echo "  Lancez avec l'IP publique en argument :"
+  echo "  sudo bash scripts/fix-public-host.sh 52.212.191.28"
   exit 1
 fi
 
