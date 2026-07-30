@@ -12,7 +12,7 @@ if [[ -f .env ]]; then
 fi
 
 CONSOLE_PUBLIC_URL="${CONSOLE_PUBLIC_URL:-http://localhost:3000}"
-KC_URL="${KEYCLOAK_ADMIN_URL:-http://localhost:8082}"
+KC_URL="${KEYCLOAK_ADMIN_URL:-http://127.0.0.1:8082}"
 REALM="${KEYCLOAK_REALM:-lorawan}"
 ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
 ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD:-admin}"
@@ -42,6 +42,25 @@ admin_token() {
 
 echo "→ Configuration profil utilisateur (attribut tenant_id)..."
 TOKEN="$(admin_token)"
+
+echo "→ Désactivation HTTPS obligatoire (realm master + lorawan)..."
+for REALM_NAME in master "$REALM"; do
+  RJSON="$(curl -sf "$KC_URL/admin/realms/$REALM_NAME" -H "Authorization: Bearer $TOKEN")"
+  SSL_PATCH="$(python3 - <<'PY' "$RJSON"
+import json, sys
+realm = json.loads(sys.argv[1])
+realm["sslRequired"] = "none"
+print(json.dumps(realm))
+PY
+)"
+  curl -sf -X PUT "$KC_URL/admin/realms/$REALM_NAME" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$SSL_PATCH" >/dev/null
+  echo "✓ Realm $REALM_NAME : sslRequired=none"
+done
+
+echo "→ Configuration profil utilisateur (attribut tenant_id)..."
 PROFILE="$(curl -sf "$KC_URL/admin/realms/$REALM/users/profile" -H "Authorization: Bearer $TOKEN")"
 UPDATED="$(python3 - <<'PY' "$PROFILE"
 import json, sys

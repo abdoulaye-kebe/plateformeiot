@@ -72,6 +72,8 @@ services:
     environment:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_HOST:-localhost}
       KC_HOSTNAME_PORT: ${KEYCLOAK_PUBLIC_PORT:-8082}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KEYCLOAK_ADMIN: admin
