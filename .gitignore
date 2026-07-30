@@ -27,3 +27,4 @@ dist/
 
 # Docker volumes (local)
 data/
+*.pem
