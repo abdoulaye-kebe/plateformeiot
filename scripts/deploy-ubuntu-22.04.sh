@@ -35,9 +35,22 @@ if ! command -v docker >/dev/null 2>&1; then
   bash "$ROOT/scripts/install-docker-ubuntu-22.04.sh"
 fi
 
+# shellcheck source=lib/public-host.sh
+source "$ROOT/scripts/lib/public-host.sh"
+
 if [[ -z "$PUBLIC_HOST" ]]; then
-  PUBLIC_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
-  echo "→ PUBLIC_HOST non défini — utilisation IP locale : $PUBLIC_HOST"
+  PUBLIC_HOST="$(detect_public_host)"
+  echo "→ PUBLIC_HOST auto-détecté : $PUBLIC_HOST"
+fi
+
+if is_private_ip "$PUBLIC_HOST"; then
+  echo "⚠ IP privée ($PUBLIC_HOST) — les clients externes ne pourront pas se connecter."
+  echo "  Sur AWS EC2, relancez avec : export PUBLIC_HOST=<ip-publique>"
+  AWS_PUB="$(curl -sf --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)"
+  if [[ -n "$AWS_PUB" ]]; then
+    PUBLIC_HOST="$AWS_PUB"
+    echo "→ Utilisation IP publique AWS : $PUBLIC_HOST"
+  fi
 fi
 
 if [[ ! -f .env ]]; then
