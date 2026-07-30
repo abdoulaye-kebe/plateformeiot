@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -164,10 +166,34 @@ func NewRouter(deps Deps) http.Handler {
 	return r
 }
 
+func corsAllowedOrigins() []string {
+	origins := []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+	}
+	if u := strings.TrimSpace(os.Getenv("CONSOLE_PUBLIC_URL")); u != "" {
+		u = strings.TrimSuffix(u, "/")
+		if !containsString(origins, u) {
+			origins = append(origins, u)
+		}
+	}
+	return origins
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
+	allowed := corsAllowedOrigins()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000" {
+		if containsString(allowed, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
