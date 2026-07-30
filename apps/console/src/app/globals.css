@@ -28,7 +28,7 @@ body {
   }
 
   .input-field {
-    @apply w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black;
+    @apply w-full rounded-sm border border-gray-300 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
   }
 
   .card-live {
@@ -74,5 +74,46 @@ body {
 
   .card-tab-active {
     @apply border-brand font-semibold text-black;
+  }
+
+  /* Page login — panneau formulaire */
+  .login-panel {
+    @apply overflow-hidden bg-white shadow-[0_4px_24px_rgba(0,0,0,0.08)];
+  }
+
+  .login-panel-header {
+    @apply border-b border-gray-100 bg-white px-8 pb-6 pt-8;
+  }
+
+  .login-panel-body {
+    @apply bg-white px-8 py-7;
+  }
+
+  .login-panel-footer {
+    @apply border-t border-gray-100 bg-neutral-50 px-8 py-5;
+  }
+
+  .login-field label {
+    @apply mb-2 block text-sm font-medium text-gray-700;
+  }
+
+  .login-input-wrap {
+    @apply flex items-center gap-3 rounded-sm border border-gray-300 bg-[#fafafa] px-3 transition-colors focus-within:border-brand focus-within:bg-white focus-within:ring-2 focus-within:ring-brand/15;
+  }
+
+  .login-input {
+    @apply min-h-[44px] flex-1 border-0 bg-transparent py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none;
+  }
+
+  .login-submit {
+    @apply mt-2 w-full rounded-sm bg-brand py-3.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .login-error {
+    @apply rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700;
+  }
+
+  .login-demo-btn {
+    @apply rounded-sm border border-gray-200 bg-white px-2 py-2.5 text-center transition-all hover:border-brand hover:bg-brand-light;
   }
 }
