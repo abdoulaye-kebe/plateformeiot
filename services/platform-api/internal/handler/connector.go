@@ -251,7 +251,7 @@ func (d Deps) testConnector(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sample := sampleUplinkEvent(scope.String())
-	res := dispatchConnectorTest(r.Context(), *scope, c, sample)
+	res := dispatchConnectorTest(r.Context(), scope.String(), c, sample)
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -328,7 +328,7 @@ func dispatchConnectorTest(ctx context.Context, tenantID string, c store.Connect
 	case "mqtt":
 		return testMQTTConnector(ctx, c.Config, payload)
 	case "mcp":
-		return testMCPConnectorHTTP(ctx, scope.String(), c.Config, payload)
+		return testMCPConnectorHTTP(ctx, tenantID, c.Config, payload)
 	default:
 		return connectorTestResult{Success: false, Detail: "unknown type"}
 	}
