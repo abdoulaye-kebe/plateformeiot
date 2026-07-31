@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func enrichDeviceList(ctx context.Context, d Deps, tenantID *uuid.UUID, data map[string]any) {
+func enrichDeviceList(ctx context.Context, d Deps, tenantID *uuid.UUID, csTenantID string, data map[string]any) {
 	items, ok := data["result"].([]any)
 	if !ok || len(items) == 0 {
 		return
@@ -21,7 +21,10 @@ func enrichDeviceList(ctx context.Context, d Deps, tenantID *uuid.UUID, data map
 	}
 
 	appNames := map[string]string{}
-	csTenant := d.TenantID
+	csTenant := csTenantID
+	if csTenant == "" {
+		csTenant = d.TenantID
+	}
 	if csTenant != "" {
 		apps, _ := d.ChirpStack.ListApplications(ctx, csTenant, 100)
 		if appItems, ok := apps["result"].([]any); ok {
@@ -84,5 +87,5 @@ func (d Deps) enrichDeviceListForRequest(w http.ResponseWriter, r *http.Request,
 	if !ok {
 		return
 	}
-	enrichDeviceList(r.Context(), d, scope, data)
+	enrichDeviceList(r.Context(), d, scope, d.effectiveTenantID(r), data)
 }

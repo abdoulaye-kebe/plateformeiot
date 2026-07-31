@@ -65,12 +65,6 @@ const MAIN_NAV: NavItem[] = [
     match: (p) => p.startsWith("/agent"),
   },
   {
-    href: "/getting-started",
-    label: "Premiers pas",
-    roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
-    match: (p) => p.startsWith("/getting-started"),
-  },
-  {
     href: "/settings",
     label: "Administration",
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
