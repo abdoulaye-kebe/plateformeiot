@@ -187,6 +187,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Route("/decoders", func(r chi.Router) {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/", deps.listDecoders)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/template", deps.getDecoderTemplate)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/template/shengda", deps.getShengdaDecoderTemplate)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/", deps.createDecoder)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/{id}", deps.getDecoder)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/{id}", deps.updateDecoder)

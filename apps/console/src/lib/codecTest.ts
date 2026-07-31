@@ -16,6 +16,14 @@ export function testDecodeUplink(script: string, hexPayload: string, fPort: numb
   if (!hex || hex.length % 2 !== 0) {
     throw new Error("Payload hex invalide");
   }
+  if (!/function\s+decodeUplink|decodeUplink\s*=/.test(script) && /decodeShengdaFrame/.test(script)) {
+    throw new Error(
+      "decodeUplink(input) manquant — enregistrez le décodeur : un wrapper ChirpStack sera ajouté automatiquement, ou cliquez « Importer modèle Shengda »."
+    );
+  }
+  if (!/function\s+decodeUplink|decodeUplink\s*=/.test(script)) {
+    throw new Error("decodeUplink(input) requis — voir modèle ChirpStack v4 (QuickJS).");
+  }
   const arr: number[] = [];
   for (let i = 0; i < hex.length; i += 2) {
     arr.push(parseInt(hex.slice(i, i + 2), 16));

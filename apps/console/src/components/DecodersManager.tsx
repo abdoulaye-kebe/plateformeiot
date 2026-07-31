@@ -105,20 +105,24 @@ export default function DecodersManager() {
 
   async function importShengda() {
     setError("");
-    const codec = await apiFetch<{ script?: string; name?: string; vendor?: string; downlinkFPort?: number }>(
-      "/api/v1/shengda/codec"
-    );
-    if (!codec?.script) {
-      setError("Codec Shengda indisponible — démarrez shengda-water.");
+    const codec = await apiFetch<{ script?: string; name?: string; vendor?: string; downlinkFPort?: number; description?: string }>(
+      "/api/v1/decoders/template/shengda"
+    ).catch(() => null);
+    const fallback = !codec?.script
+      ? await apiFetch<{ script?: string; name?: string; vendor?: string; downlinkFPort?: number }>("/api/v1/shengda/codec")
+      : null;
+    const src = codec?.script ? codec : fallback;
+    if (!src?.script) {
+      setError("Codec Shengda indisponible.");
       return;
     }
     setForm((f) => ({
       ...f,
-      name: f.name || codec.name || "Shengda Water Meter V1.6",
-      vendor: codec.vendor || "shengda",
-      script: codec.script ?? f.script,
-      downlinkFPort: codec.downlinkFPort ?? 2,
-      description: f.description || "Télérelevé eau et contrôle vanne (port downlink 2)",
+      name: f.name || src.name || "Shengda Water Meter V1.6",
+      vendor: src.vendor || "shengda",
+      script: src.script ?? f.script,
+      downlinkFPort: src.downlinkFPort ?? 2,
+      description: f.description || (codec?.description ?? "Télérelevé eau et contrôle vanne (port downlink 2)"),
     }));
     setIsNew(true);
     setSelectedId(null);
@@ -198,7 +202,25 @@ export default function DecodersManager() {
   async function testDecode() {
     setError("");
     try {
-      const result = testDecodeUplink(form.script, testHex, form.downlinkFPort);
+      let script = form.script;
+      if (!/function\s+decodeUplink|decodeUplink\s*=/.test(script) && /decodeShengdaFrame/.test(script)) {
+        script =
+          script +
+          `
+function decodeUplink(input) {
+  var bytes = input.bytes;
+  if (!bytes || !bytes.length) return { data: {} };
+  var hex = "";
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i] & 0xff;
+    hex += (b < 16 ? "0" : "") + b.toString(16);
+  }
+  var decoded = decodeShengdaFrame(hex);
+  if (decoded && typeof decoded === "object" && decoded.data !== undefined) return decoded;
+  return { data: decoded };
+}`;
+      }
+      const result = testDecodeUplink(script, testHex, form.downlinkFPort);
       setTestResult(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de décodage");

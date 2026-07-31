@@ -87,7 +87,12 @@ func (d Deps) createDecoder(w http.ResponseWriter, r *http.Request) {
 	if script == "" {
 		script = codecjs.DefaultScript
 	}
-	dec, err := d.Decoders.Create(r.Context(), *scope, req.Name, req.Description, req.Vendor, script, req.DownlinkFPort)
+	normalized, err := codecjs.EnsureChirpStackCodec(script)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	dec, err := d.Decoders.Create(r.Context(), *scope, req.Name, req.Description, req.Vendor, normalized, req.DownlinkFPort)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -145,7 +150,12 @@ func (d Deps) updateDecoder(w http.ResponseWriter, r *http.Request) {
 	if fPort <= 0 {
 		fPort = existing.DownlinkFPort
 	}
-	dec, err := d.Decoders.Update(r.Context(), id, *scope, name, desc, vendor, script, fPort)
+	normalized, normErr := codecjs.EnsureChirpStackCodec(script)
+	if normErr != nil {
+		writeError(w, http.StatusBadRequest, normErr.Error())
+		return
+	}
+	dec, err := d.Decoders.Update(r.Context(), id, *scope, name, desc, vendor, normalized, fPort)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -205,6 +215,11 @@ func (d Deps) applyDecoder(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	script, normErr := codecjs.EnsureChirpStackCodec(dec.Script)
+	if normErr != nil {
+		writeError(w, http.StatusBadRequest, normErr.Error())
+		return
+	}
 	var req applyDecoderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -226,7 +241,7 @@ func (d Deps) applyDecoder(w http.ResponseWriter, r *http.Request) {
 
 	var profileID string
 	if req.Create || req.DeviceProfileID == "" {
-		data, err := d.ChirpStack.CreateDeviceProfileWithCodec(r.Context(), csTenant, profileName, profileDesc, dec.Script)
+		data, err := d.ChirpStack.CreateDeviceProfileWithCodec(r.Context(), csTenant, profileName, profileDesc, script)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err.Error())
 			return
@@ -234,7 +249,7 @@ func (d Deps) applyDecoder(w http.ResponseWriter, r *http.Request) {
 		profileID = extractDeviceProfileID(data)
 		writeJSON(w, http.StatusCreated, data)
 	} else {
-		data, err := d.ChirpStack.ApplyDeviceProfileCodec(r.Context(), req.DeviceProfileID, dec.Script)
+		data, err := d.ChirpStack.ApplyDeviceProfileCodec(r.Context(), req.DeviceProfileID, script)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err.Error())
 			return
@@ -250,11 +265,22 @@ func (d Deps) applyDecoder(w http.ResponseWriter, r *http.Request) {
 
 func (d Deps) getDecoderTemplate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"name":              "Modèle vide",
-		"vendor":            "",
-		"downlinkFPort":     1,
+		"name":                "Modèle vide",
+		"vendor":              "",
+		"downlinkFPort":       1,
 		"payloadCodecRuntime": "JS",
-		"script":            codecjs.DefaultScript,
+		"script":              codecjs.DefaultScript,
+	})
+}
+
+func (d Deps) getShengdaDecoderTemplate(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":                "Shengda Water Meter V1.6",
+		"vendor":              "shengda",
+		"downlinkFPort":       2,
+		"payloadCodecRuntime": "JS",
+		"script":              codecjs.ShengdaScript(),
+		"description":         "Télérelevé eau et contrôle vanne (port downlink 2)",
 	})
 }
 
