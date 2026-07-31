@@ -83,8 +83,8 @@ func enrichDeviceList(ctx context.Context, d Deps, tenantID *uuid.UUID, csTenant
 }
 
 func (d Deps) enrichDeviceListForRequest(w http.ResponseWriter, r *http.Request, data map[string]any) {
-	scope, ok := d.dataTenantScope(w, r)
-	if !ok {
+	scope, ok := d.tryDataTenantScope(r)
+	if !ok || scope == nil {
 		return
 	}
 	enrichDeviceList(r.Context(), d, scope, d.effectiveTenantID(r), data)

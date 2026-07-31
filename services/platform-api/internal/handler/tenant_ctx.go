@@ -131,6 +131,53 @@ func (d Deps) dataTenantScope(w http.ResponseWriter, r *http.Request) (*uuid.UUI
 	return tid, true
 }
 
+// tryDataTenantScope comme dataTenantScope mais sans écrire de réponse HTTP (enrichissement optionnel).
+func (d Deps) tryDataTenantScope(r *http.Request) (*uuid.UUID, bool) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		if d.AuthEnabled {
+			return nil, false
+		}
+		return nil, true
+	}
+
+	if hasAnyRole(user, "platform-admin") {
+		if tid, ok := d.adminSelectedPlatformTenantID(r); ok {
+			if err := d.assertTenantActiveSilent(r.Context(), *tid); err != nil {
+				return nil, false
+			}
+			return tid, true
+		}
+		if tid, ok := d.platformTenantID(r.Context(), r); ok {
+			if err := d.assertTenantActiveSilent(r.Context(), *tid); err != nil {
+				return nil, false
+			}
+			return tid, true
+		}
+		return nil, false
+	}
+
+	tid, ok := d.platformTenantID(r.Context(), r)
+	if !ok {
+		return nil, false
+	}
+	if err := d.assertTenantActiveSilent(r.Context(), *tid); err != nil {
+		return nil, false
+	}
+	return tid, true
+}
+
+func (d Deps) assertTenantActiveSilent(ctx context.Context, platformTenantID uuid.UUID) error {
+	tenant, err := d.TenantStore.GetByID(ctx, platformTenantID)
+	if err != nil {
+		return err
+	}
+	if tenant.Status == "suspended" {
+		return fmt.Errorf("tenant suspended")
+	}
+	return nil
+}
+
 func (d Deps) rulesTenantScope(w http.ResponseWriter, r *http.Request) (*uuid.UUID, bool) {
 	return d.dataTenantScope(w, r)
 }

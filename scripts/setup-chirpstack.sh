@@ -64,5 +64,67 @@ else
   echo "✓ Clé API globale enregistrée dans $ENV_FILE"
 fi
 
+# shellcheck source=lib/compose.sh
+source "$ROOT/scripts/lib/compose.sh"
+
+align_platform_tenant() {
+  local cs_tenant
+  cs_tenant="$(grep '^CHIRPSTACK_TENANT_ID=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '\r\n' || true)"
+  [[ -n "$cs_tenant" ]] || return 0
+
+  echo "→ Alignement tenant plateforme (chirpstack-default → $cs_tenant)..."
+  $COMPOSE_CMD exec -T platform-postgres psql -U platform -d platform -c \
+    "UPDATE tenants SET chirpstack_tenant_id = '${cs_tenant}'::uuid WHERE slug = 'chirpstack-default';" \
+    >/dev/null 2>&1 || echo "⚠  Mise à jour PostgreSQL ignorée (postgres indisponible)"
+
+  KC_URL="${KEYCLOAK_ADMIN_URL:-http://127.0.0.1:8082}"
+  REALM="${KEYCLOAK_REALM:-lorawan}"
+  ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
+  ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD:-admin}"
+
+  kc_admin_token() {
+    curl -sf -X POST "$KC_URL/realms/master/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "grant_type=password&client_id=admin-cli&username=${ADMIN_USER}&password=${ADMIN_PASS}" \
+      | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true
+  }
+
+  sync_kc_user_tenant() {
+    local username="$1" token="$2"
+    local users_json user_id user_json patched
+    users_json="$(curl -sf "$KC_URL/admin/realms/$REALM/users?username=${username}" -H "Authorization: Bearer $token" 2>/dev/null || true)"
+    user_id="$(python3 -c "import json,sys; d=json.loads(sys.argv[1] or '[]'); print(d[0]['id'] if d else '')" "$users_json" 2>/dev/null || true)"
+    [[ -n "$user_id" ]] || return 0
+    user_json="$(curl -sf "$KC_URL/admin/realms/$REALM/users/$user_id" -H "Authorization: Bearer $token" 2>/dev/null || true)"
+    patched="$(python3 - <<PY "$user_json" "$cs_tenant"
+import json, sys
+u = json.loads(sys.argv[1] or '{}')
+attrs = u.get('attributes') or {}
+attrs['tenant_id'] = [sys.argv[2]]
+u['attributes'] = attrs
+print(json.dumps(u))
+PY
+)"
+    curl -sf -X PUT "$KC_URL/admin/realms/$REALM/users/$user_id" \
+      -H "Authorization: Bearer $token" \
+      -H "Content-Type: application/json" \
+      -d "$patched" >/dev/null 2>&1 || true
+  }
+
+  KTOKEN="$(kc_admin_token)"
+  if [[ -n "$KTOKEN" ]]; then
+    for u in operator admin viewer tenant-admin; do
+      sync_kc_user_tenant "$u" "$KTOKEN"
+    done
+    echo "✓ Attribut Keycloak tenant_id synchronisé pour operator/admin/viewer"
+  else
+    echo "⚠  Keycloak indisponible — tenant_id utilisateurs non mis à jour"
+  fi
+}
+
+if [[ -f "$ENV_FILE" ]]; then
+  align_platform_tenant
+fi
+
 echo "✓ Configuration OK — redémarrage des services..."
 docker compose up -d platform-api ai-agent console

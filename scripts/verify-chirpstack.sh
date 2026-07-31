@@ -174,7 +174,7 @@ echo -e "OK: ${GREEN}${pass}${NC} | Échecs: ${RED}${fail}${NC} | Avertissements
 if [[ "$fail" -gt 0 ]]; then
   echo ""
   echo "Actions suggérées :"
-  echo "  ./scripts/setup-chirpstack.sh"
+  echo "  ./scripts/setup-chirpstack.sh    # aligne tenant PG + Keycloak avec CHIRPSTACK_TENANT_ID"
   echo "  ./scripts/migrate-all.sh"
   echo "  docker compose build platform-api && docker compose up -d --force-recreate platform-api"
   exit 1

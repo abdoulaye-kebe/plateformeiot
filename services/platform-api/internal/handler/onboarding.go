@@ -51,7 +51,7 @@ func (d Deps) getOnboardingStatus(w http.ResponseWriter, r *http.Request) {
 		status.HasDevice = status.DeviceCount > 0
 	}
 
-	if scope, ok := d.dataTenantScope(w, r); ok && scope != nil {
+	if scope, ok := d.tryDataTenantScope(r); ok && scope != nil {
 		if ov, err := d.Analytics.Overview(r.Context(), scope); err == nil {
 			status.Uplinks24h = ov.TotalUplinks24h
 			status.HasTraffic = ov.TotalUplinks24h > 0
