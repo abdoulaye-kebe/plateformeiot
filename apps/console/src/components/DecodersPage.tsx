@@ -24,8 +24,8 @@ export default function DecodersPage() {
         <DecodersManager />
         <p className="mt-4 text-xs text-gray-500">
           Compteurs d&apos;eau Shengda : voir aussi{" "}
-          <Link href="/water-meters" className="text-brand hover:underline">
-            Eau / Vannes
+          <Link href="/apps/shengda/water-meters" className="text-brand hover:underline">
+            Eau / Vannes (app Shengda)
           </Link>
         </p>
       </div>

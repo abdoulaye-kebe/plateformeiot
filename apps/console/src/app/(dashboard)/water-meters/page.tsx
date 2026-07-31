@@ -1,5 +1,5 @@
-import WaterMetersPage from "@/components/WaterMetersPage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <WaterMetersPage />;
+  redirect("/apps/shengda/water-meters");
 }

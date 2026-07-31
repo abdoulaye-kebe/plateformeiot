@@ -3,23 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const DEVICE_NAV = [
-  { href: "/devices", label: "All devices" },
-  { href: "/applications", label: "Applications" },
-  { href: "/fuota", label: "Firmware OTA (FUOTA)" },
+const APPS_NAV = [
+  { href: "/apps", label: "Catalogue", exact: true },
+  { href: "/apps/shengda/water-meters", label: "Shengda — Eau / Vannes" },
 ];
 
-export default function DevicesShell({ children }: { children: React.ReactNode }) {
+export default function BusinessAppsShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col lg:flex-row">
       <aside className="w-full shrink-0 border-b border-gray-200 bg-white lg:w-56 lg:border-b-0 lg:border-r">
         <div className="p-4">
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-gray-400">Devices</p>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-gray-400">Apps métier</p>
           <nav className="space-y-0.5">
-            {DEVICE_NAV.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            {APPS_NAV.map((item) => {
+              const active = item.exact
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}
