@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -152,4 +153,40 @@ func (s *AnalyticsStore) Overview(ctx context.Context, tenantID *uuid.UUID) (*Ov
 		&o.TotalUplinks24h, &o.ActiveDevices24h, &o.ActiveGateways24h, &o.AvgRSSI24h,
 	)
 	return &o, err
+}
+
+type DeviceLastSeen struct {
+	DevEUI        string    `json:"devEui"`
+	LastSeen      time.Time `json:"lastSeen"`
+	UplinkCount24 int64     `json:"uplinkCount24h"`
+}
+
+func (s *AnalyticsStore) DeviceLastSeenMap(ctx context.Context, tenantID *uuid.UUID) (map[string]DeviceLastSeen, error) {
+	query := `
+		SELECT dev_eui, max(time) AS last_seen,
+		       count(*) FILTER (WHERE time > NOW() - interval '24 hours')::bigint
+		FROM uplink_frames
+		WHERE 1=1`
+	args := []any{}
+	if tenantID != nil {
+		query += ` AND tenant_id = $1`
+		args = append(args, *tenantID)
+	}
+	query += ` GROUP BY dev_eui`
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]DeviceLastSeen{}
+	for rows.Next() {
+		var d DeviceLastSeen
+		if err := rows.Scan(&d.DevEUI, &d.LastSeen, &d.UplinkCount24); err != nil {
+			return nil, err
+		}
+		out[strings.ToLower(d.DevEUI)] = d
+	}
+	return out, rows.Err()
 }

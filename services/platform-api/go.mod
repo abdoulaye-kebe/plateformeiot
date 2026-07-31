@@ -14,11 +14,21 @@ require (
 
 require (
 	github.com/MicahParks/jwkset v0.5.19 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/go-ini/ini v1.67.0 // indirect
+	github.com/goccy/go-json v0.10.3 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/rs/xid v1.6.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 )

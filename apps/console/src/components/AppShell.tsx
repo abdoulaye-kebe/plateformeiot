@@ -40,10 +40,16 @@ const MAIN_NAV: NavItem[] = [
     match: (p) => p.startsWith("/applications"),
   },
   {
-    href: "/analytics",
+    href: "/water-meters",
+    label: "Eau / Vannes",
+    roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
+    match: (p) => p.startsWith("/water-meters"),
+  },
+  {
+    href: "/data/messages",
     label: "Data",
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
-    match: (p) => p.startsWith("/analytics") || p.startsWith("/rules"),
+    match: (p) => p.startsWith("/data") || p.startsWith("/analytics") || p.startsWith("/rules"),
   },
   {
     href: "/noc",

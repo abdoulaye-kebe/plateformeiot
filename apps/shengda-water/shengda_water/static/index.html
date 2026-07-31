@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shengda — Télérelevé eau</title>
+  <style>
+    :root { --brand: #0d9488; --bg: #f8fafc; --card: #fff; --text: #0f172a; --muted: #64748b; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    header { background: var(--card); border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    p.sub { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; align-items: end; }
+    label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.25rem; }
+    input { padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; min-width: 280px; }
+    button { padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; background: var(--brand); color: #fff; cursor: pointer; font-weight: 600; }
+    button.secondary { background: #fff; color: var(--text); border: 1px solid #cbd5e1; }
+    button.danger { background: #dc2626; }
+    .card { background: var(--card); border-radius: 0.75rem; border: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #f1f5f9; }
+    th { color: var(--muted); font-weight: 600; }
+    .mono { font-family: ui-monospace, monospace; font-size: 0.75rem; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .open { background: #d1fae5; color: #065f46; }
+    .closed { background: #fee2e2; color: #991b1b; }
+    .note { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    #msg { margin: 0.75rem 0; padding: 0.75rem; border-radius: 0.5rem; display: none; }
+    #msg.ok { display: block; background: #ecfdf5; color: #065f46; }
+    #msg.err { display: block; background: #fef2f2; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Compteurs d'eau Shengda</h1>
+    <p class="sub">Application métier autonome — port <strong>8098</strong> (API + interface). La console LoRaWAN reste sur le port 3000.</p>
+  </header>
+  <main>
+    <div class="toolbar card">
+      <div>
+        <label for="tenantId">Tenant ID (UUID plateforme)</label>
+        <input id="tenantId" placeholder="00000000-0000-0000-0000-000000000001" />
+      </div>
+      <button type="button" onclick="loadMeters()">Actualiser</button>
+    </div>
+    <div id="msg"></div>
+    <div class="card">
+      <h2 style="margin:0 0 0.75rem;font-size:1rem">Compteurs</h2>
+      <table>
+        <thead>
+          <tr><th>DevEUI</th><th>Index m³</th><th>Vanne</th><th>Batterie</th><th>Dernier relevé</th><th></th></tr>
+        </thead>
+        <tbody id="meters"></tbody>
+      </table>
+      <p class="note" id="empty">Configurez le tenant ID puis actualisez. Les relevés apparaissent après réception d'uplinks.</p>
+    </div>
+    <div class="card" id="detail" style="display:none">
+      <h2 style="margin:0 0 0.75rem;font-size:1rem">Contrôle — <span class="mono" id="selEui"></span></h2>
+      <div class="actions">
+        <button type="button" onclick="cmd('open')">Ouvrir vanne</button>
+        <button type="button" class="danger" onclick="cmd('close')">Fermer vanne</button>
+        <button type="button" class="secondary" onclick="cmd('dredge')">Débourrer</button>
+        <button type="button" class="secondary" onclick="cmd('read')">Télérelevé</button>
+      </div>
+      <p class="note">Downlink port 2, confirmé. Device connecté requis.</p>
+      <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem">Historique</h3>
+      <table>
+        <thead><tr><th>Date</th><th>Index m³</th><th>Vanne</th><th>Batterie</th></tr></thead>
+        <tbody id="readings"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    let selected = "";
+    const tenantInput = document.getElementById("tenantId");
+    const saved = localStorage.getItem("shengdaTenantId");
+    if (saved) tenantInput.value = saved;
+
+    function tenantId() {
+      const v = tenantInput.value.trim();
+      if (v) localStorage.setItem("shengdaTenantId", v);
+      return v;
+    }
+
+    function showMsg(text, ok) {
+      const el = document.getElementById("msg");
+      el.textContent = text;
+      el.className = ok ? "ok" : "err";
+    }
+
+    async function api(path, opts) {
+      const tid = tenantId();
+      if (!tid) { showMsg("Tenant ID requis", false); throw new Error("tenant"); }
+      const sep = path.includes("?") ? "&" : "?";
+      const res = await fetch(path + sep + "tenantId=" + encodeURIComponent(tid), opts);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    async function loadMeters() {
+      try {
+        const data = await api("/meters");
+        const rows = data.result || [];
+        document.getElementById("empty").style.display = rows.length ? "none" : "block";
+        document.getElementById("meters").innerHTML = rows.map(m => `
+          <tr>
+            <td class="mono">${m.dev_eui}</td>
+            <td>${m.last_index_m3 ?? "—"}</td>
+            <td>${m.valve_open == null ? "—" : m.valve_open ? '<span class="badge open">Ouverte</span>' : '<span class="badge closed">Fermée</span>'}</td>
+            <td>${m.battery_v != null ? m.battery_v + " V" : "—"}</td>
+            <td>${m.last_reading_at ? new Date(m.last_reading_at).toLocaleString("fr-FR") : "—"}</td>
+            <td><button class="secondary" type="button" onclick="selectMeter('${m.dev_eui}')">Détails</button></td>
+          </tr>`).join("");
+        showMsg(rows.length + " compteur(s) chargé(s)", true);
+      } catch (e) {
+        if (e.message !== "tenant") showMsg("Erreur: " + e.message, false);
+      }
+    }
+
+    async function selectMeter(eui) {
+      selected = eui;
+      document.getElementById("detail").style.display = "block";
+      document.getElementById("selEui").textContent = eui;
+      const data = await api("/meters/" + eui + "/readings?limit=15");
+      const rows = data.result || [];
+      document.getElementById("readings").innerHTML = rows.map(r => `
+        <tr>
+          <td>${new Date(r.time).toLocaleString("fr-FR")}</td>
+          <td>${r.index_m3 ?? "—"}</td>
+          <td>${r.valve_open == null ? "—" : r.valve_open ? "Ouverte" : "Fermée"}</td>
+          <td>${r.battery_v != null ? r.battery_v + " V" : "—"}</td>
+        </tr>`).join("");
+    }
+
+    async function cmd(action) {
+      if (!selected) return;
+      try {
+        await api("/meters/" + selected + "/commands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action })
+        });
+        showMsg("Commande « " + action + " » envoyée", true);
+        selectMeter(selected);
+      } catch (e) {
+        showMsg("Échec commande: " + e.message, false);
+      }
+    }
+  </script>
+</body>
+</html>

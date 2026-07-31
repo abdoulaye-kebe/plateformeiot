@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { PageHeader, StatCard, Section, RoleBanner } from "@/components/ui";
 
-export default function AnalyticsDashboard() {
+export default function AnalyticsDashboard({ embedded = false }: { embedded?: boolean }) {
   const [overview, setOverview] = useState<Record<string, number | undefined> | null>(null);
   const [traffic, setTraffic] = useState<{ bucket: string; uplinkCount: number; avgRssi?: number }[]>([]);
   const [rules, setRules] = useState<{ id: string; name: string; enabled: boolean; description: string }[]>([]);
@@ -27,9 +27,19 @@ export default function AnalyticsDashboard() {
   }, []);
 
   return (
-    <div className="p-4 lg:p-6">
-      <PageHeader title="Analytics" subtitle="Trafic MQTT · TimescaleDB · métriques radio 24h" />
-      <RoleBanner />
+    <div className={embedded ? "p-4 lg:p-6" : "p-4 lg:p-6"}>
+      {!embedded && (
+        <>
+          <PageHeader title="Analytics" subtitle="Trafic MQTT · TimescaleDB · métriques radio 24h" />
+          <RoleBanner />
+        </>
+      )}
+      {embedded && (
+        <>
+          <h1 className="mb-1 text-xl font-bold">Analytics</h1>
+          <p className="mb-6 text-sm text-gray-600">Trafic MQTT · TimescaleDB · métriques radio 24h</p>
+        </>
+      )}
 
       <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Uplinks 24h" value={overview?.totalUplinks24h ?? 0} />

@@ -101,6 +101,8 @@ func NewRouter(deps Deps) http.Handler {
 			r.Get("/devices/{devEui}/events", deps.getDeviceEvents)
 			r.Get("/devices/{devEui}/payloads", deps.listDevicePayloads)
 			r.Get("/payloads/{id}/download", deps.getPayloadDownloadURL)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/devices/{devEui}/downlink", deps.enqueueDeviceDownlink)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/devices/{devEui}/downlink", deps.flushDeviceDownlink)
 
 			r.Get("/gateways", deps.listGateways)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways", deps.createGateway)
@@ -114,6 +116,10 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/rf-scan/results", deps.uploadGatewayRfScanResults)
 
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Get("/chirpstack/tenants", deps.listChirpStackTenants)
+		})
+
+		r.Route("/data", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/messages", deps.listDataMessages)
 		})
 
 		r.Route("/analytics", func(r chi.Router) {
@@ -161,6 +167,17 @@ func NewRouter(deps Deps) http.Handler {
 		r.Route("/onboarding", func(r chi.Router) {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/status", deps.getOnboardingStatus)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/bootstrap", deps.onboardingBootstrap)
+		})
+
+		r.Route("/shengda", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters", deps.listShengdaMeters)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters/{devEui}", deps.getShengdaMeter)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters/{devEui}/readings", deps.listShengdaReadings)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters/{devEui}/commands", deps.listShengdaCommands)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/meters/{devEui}/commands", deps.sendShengdaCommand)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/decode", deps.decodeShengdaPayload)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/codec", deps.getShengdaCodec)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/codec/apply", deps.applyShengdaCodec)
 		})
 
 		r.Route("/connectors", func(r chi.Router) {
@@ -269,6 +286,7 @@ func (d Deps) listDevices(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	d.enrichDeviceListForRequest(w, r, data)
 	writeJSON(w, http.StatusOK, data)
 }
 

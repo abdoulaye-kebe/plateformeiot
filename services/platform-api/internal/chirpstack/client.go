@@ -77,6 +77,52 @@ func (c *Client) CreateDeviceProfile(ctx context.Context, tenantID, name, descri
 	return c.postJSON(ctx, "/api/device-profiles", body)
 }
 
+func (c *Client) GetDeviceProfile(ctx context.Context, profileID string) (map[string]any, error) {
+	return c.getJSON(ctx, "/api/device-profiles/"+url.PathEscape(profileID))
+}
+
+func (c *Client) UpdateDeviceProfile(ctx context.Context, profileID string, profile map[string]any) (map[string]any, error) {
+	return c.putJSON(ctx, "/api/device-profiles/"+url.PathEscape(profileID), map[string]any{"deviceProfile": profile})
+}
+
+func (c *Client) CreateDeviceProfileWithCodec(ctx context.Context, tenantID, name, description, codecScript string) (map[string]any, error) {
+	body := map[string]any{
+		"deviceProfile": map[string]any{
+			"tenantId":             tenantID,
+			"name":                 name,
+			"description":          description,
+			"region":               "EU868",
+			"macVersion":           "1.0.3",
+			"regParamsRevision":    "A",
+			"supportsOtaa":         true,
+			"supportsClassB":       false,
+			"supportsClassC":       false,
+			"allowRoaming":         false,
+			"uplinkInterval":       3600,
+			"adrAlgorithmId":       "default",
+			"payloadCodecRuntime":  "JS",
+			"payloadCodecScript":   codecScript,
+			"autoDetectMeasurements": true,
+		},
+	}
+	return c.postJSON(ctx, "/api/device-profiles", body)
+}
+
+func (c *Client) ApplyDeviceProfileCodec(ctx context.Context, profileID, codecScript string) (map[string]any, error) {
+	current, err := c.GetDeviceProfile(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	profile, _ := current["deviceProfile"].(map[string]any)
+	if profile == nil {
+		profile = current
+	}
+	profile["payloadCodecRuntime"] = "JS"
+	profile["payloadCodecScript"] = codecScript
+	profile["autoDetectMeasurements"] = true
+	return c.UpdateDeviceProfile(ctx, profileID, profile)
+}
+
 // ListDevices agrège les devices par application (ChirpStack v4 exige applicationId).
 func (c *Client) ListDevices(ctx context.Context, tenantID string, limit int) (map[string]any, error) {
 	if tenantID == "" {
@@ -300,6 +346,22 @@ func (c *Client) UpdateTenantLimits(ctx context.Context, tenantID string, maxDev
 
 func (c *Client) DeleteTenant(ctx context.Context, tenantID string) error {
 	return c.delete(ctx, "/api/tenants/"+url.PathEscape(tenantID))
+}
+
+func (c *Client) EnqueueDownlink(ctx context.Context, devEUI string, dataBase64 string, fPort int, confirmed bool) (map[string]any, error) {
+	body := map[string]any{
+		"deviceQueueItem": map[string]any{
+			"confirmed": confirmed,
+			"data":      dataBase64,
+			"devEUI":    strings.ToLower(devEUI),
+			"fPort":     fPort,
+		},
+	}
+	return c.postJSON(ctx, "/api/devices/"+url.PathEscape(strings.ToLower(devEUI))+"/queue", body)
+}
+
+func (c *Client) FlushDownlinkQueue(ctx context.Context, devEUI string) error {
+	return c.delete(ctx, "/api/devices/"+url.PathEscape(strings.ToLower(devEUI))+"/queue")
 }
 
 func (c *Client) GetDeviceEvents(ctx context.Context, devEUI string, limit int) (map[string]any, error) {
