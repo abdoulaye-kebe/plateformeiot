@@ -7,10 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrDecoderNotFound = errors.New("decoder not found")
+var ErrDecoderNameExists = errors.New("decoder name already exists")
 
 type Decoder struct {
 	ID              uuid.UUID `json:"id"`
@@ -70,6 +72,20 @@ func (s *DecoderStore) Get(ctx context.Context, id, tenantID uuid.UUID) (Decoder
 	return d, err
 }
 
+func (s *DecoderStore) GetByName(ctx context.Context, tenantID uuid.UUID, name string) (Decoder, error) {
+	row := s.pool.QueryRow(ctx, `
+		SELECT id, tenant_id, name, description, vendor, script, downlink_f_port,
+		       device_profile_id, created_at, updated_at
+		FROM tenant_decoders
+		WHERE tenant_id = $1 AND name = $2
+	`, tenantID, name)
+	d, err := scanDecoderRow(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Decoder{}, ErrDecoderNotFound
+	}
+	return d, err
+}
+
 func (s *DecoderStore) Create(ctx context.Context, tenantID uuid.UUID, name, description, vendor, script string, downlinkFPort int) (Decoder, error) {
 	if downlinkFPort <= 0 {
 		downlinkFPort = 1
@@ -77,6 +93,12 @@ func (s *DecoderStore) Create(ctx context.Context, tenantID uuid.UUID, name, des
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO tenant_decoders (tenant_id, name, description, vendor, script, downlink_f_port)
 		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (tenant_id, name) DO UPDATE SET
+			description = EXCLUDED.description,
+			vendor = EXCLUDED.vendor,
+			script = EXCLUDED.script,
+			downlink_f_port = EXCLUDED.downlink_f_port,
+			updated_at = NOW()
 		RETURNING id, tenant_id, name, description, vendor, script, downlink_f_port,
 		          device_profile_id, created_at, updated_at
 	`, tenantID, name, description, vendor, script, downlinkFPort)
@@ -99,7 +121,18 @@ func (s *DecoderStore) Update(ctx context.Context, id, tenantID uuid.UUID, name,
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Decoder{}, ErrDecoderNotFound
 	}
-	return d, err
+	if err != nil {
+		if isUniqueViolation(err) {
+			return Decoder{}, ErrDecoderNameExists
+		}
+		return Decoder{}, err
+	}
+	return d, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func (s *DecoderStore) SetDeviceProfileID(ctx context.Context, id, tenantID uuid.UUID, profileID string) error {

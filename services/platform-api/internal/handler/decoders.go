@@ -157,6 +157,10 @@ func (d Deps) updateDecoder(w http.ResponseWriter, r *http.Request) {
 	}
 	dec, err := d.Decoders.Update(r.Context(), id, *scope, name, desc, vendor, normalized, fPort)
 	if err != nil {
+		if errors.Is(err, store.ErrDecoderNameExists) {
+			writeError(w, http.StatusConflict, "un décodeur avec ce nom existe déjà")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

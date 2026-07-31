@@ -105,6 +105,7 @@ export default function DecodersManager() {
 
   async function importShengda() {
     setError("");
+    const list = await load();
     const codec = await apiFetch<{ script?: string; name?: string; vendor?: string; downlinkFPort?: number; description?: string }>(
       "/api/v1/decoders/template/shengda"
     ).catch(() => null);
@@ -116,16 +117,29 @@ export default function DecodersManager() {
       setError("Codec Shengda indisponible.");
       return;
     }
-    setForm((f) => ({
-      ...f,
-      name: f.name || src.name || "Shengda Water Meter V1.6",
+    const importName = src.name || "Shengda Water Meter V1.6";
+    const existing =
+      list.find((d) => d.name === importName) ??
+      list.find((d) => d.vendor === "shengda") ??
+      list.find((d) => d.name.toLowerCase().includes("compteur"));
+    const nextForm = {
+      name: existing?.name ?? importName,
       vendor: src.vendor || "shengda",
-      script: src.script ?? f.script,
+      script: src.script ?? "",
       downlinkFPort: src.downlinkFPort ?? 2,
-      description: f.description || (codec?.description ?? "Télérelevé eau et contrôle vanne (port downlink 2)"),
-    }));
+      description: existing?.description || codec?.description || "Télérelevé eau et contrôle vanne (port downlink 2)",
+    };
+    if (existing) {
+      setIsNew(false);
+      setSelectedId(existing.id);
+      setForm(nextForm);
+      setMessage("Modèle Shengda chargé — enregistrez pour mettre à jour le décodeur existant.");
+      return;
+    }
+    setForm((f) => ({ ...f, ...nextForm }));
     setIsNew(true);
     setSelectedId(null);
+    setMessage("Modèle Shengda chargé — enregistrez pour créer le décodeur.");
   }
 
   async function saveDecoder(e: FormEvent) {
@@ -156,7 +170,7 @@ export default function DecodersManager() {
         setError(err);
         return;
       }
-      setMessage("Décodeur créé.");
+      setMessage(data?.id ? "Décodeur enregistré." : "Décodeur créé.");
       setIsNew(false);
       if (data?.id) {
         setSelectedId(data.id);
