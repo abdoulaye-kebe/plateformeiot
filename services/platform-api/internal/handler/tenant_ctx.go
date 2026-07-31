@@ -35,6 +35,13 @@ func (d Deps) effectiveTenantID(r *http.Request) string {
 	}
 	user, ok := auth.UserFromContext(r.Context())
 	if ok && user.TenantID != "" {
+		if _, err := d.TenantStore.GetByChirpStackTenantID(r.Context(), user.TenantID); err == nil {
+			return user.TenantID
+		}
+		// JWT tenant_id obsolète (ex. après changement CHIRPSTACK_TENANT_ID sur la VM)
+		if d.TenantID != "" {
+			return d.TenantID
+		}
 		return user.TenantID
 	}
 	if d.AuthEnabled {
@@ -49,9 +56,19 @@ func (d Deps) platformTenantID(ctx context.Context, r *http.Request) (*uuid.UUID
 	}
 	user, ok := auth.UserFromContext(r.Context())
 	if !ok || user.TenantID == "" {
+		if csID := d.effectiveTenantID(r); csID != "" {
+			tenant, err := d.TenantStore.GetByChirpStackTenantID(ctx, csID)
+			if err == nil {
+				return &tenant.ID, true
+			}
+		}
 		return nil, false
 	}
-	tenant, err := d.TenantStore.GetByChirpStackTenantID(ctx, user.TenantID)
+	csID := d.effectiveTenantID(r)
+	if csID == "" {
+		return nil, false
+	}
+	tenant, err := d.TenantStore.GetByChirpStackTenantID(ctx, csID)
 	if err != nil {
 		return nil, false
 	}

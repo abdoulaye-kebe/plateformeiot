@@ -142,12 +142,14 @@ else
 
   pa_check() {
     local label="$1" path="$2" expect="${3:-200}"
-    local code
-    code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "${API_URL}${path}")"
+    local code body
+    code="$(curl -s -o /tmp/pa_out.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "${API_URL}${path}")"
     if [[ "$code" == "$expect" ]]; then
       ok "$label ($code)"
     else
-      ko "$label (HTTP $code, attendu $expect)"
+      local err
+      err="$(python3 -c "import json; print(json.load(open('/tmp/pa_out.json')).get('error',''))" 2>/dev/null || head -c 80 /tmp/pa_out.json)"
+      ko "$label (HTTP $code, attendu $expect${err:+ — $err})"
     fi
   }
 
