@@ -16,6 +16,9 @@ export default function DeviceDetailPage() {
   const [events, setEvents] = useState<unknown[]>([]);
   const [payloads, setPayloads] = useState<Array<{ id: number; time: string; payloadHex?: string; payloadSize: number; fPort?: number }>>([]);
   const [radio, setRadio] = useState<Record<string, unknown> | null>(null);
+  const [appKey, setAppKey] = useState("");
+  const [keysMsg, setKeysMsg] = useState("");
+  const [keysErr, setKeysErr] = useState("");
 
   useEffect(() => {
     if (!devEui) return;
@@ -38,6 +41,19 @@ export default function DeviceDetailPage() {
     router.push("/devices");
   }
 
+  async function saveKeys(e: React.FormEvent) {
+    e.preventDefault();
+    setKeysMsg("");
+    setKeysErr("");
+    const { error } = await apiMutate(`/api/v1/lorawan/devices/${devEui}/keys`, "PUT", { appKey });
+    if (error) {
+      setKeysErr(error);
+      return;
+    }
+    setKeysMsg("Clés OTAA enregistrées dans ChirpStack.");
+    setAppKey("");
+  }
+
   const d = device ?? {};
 
   return (
@@ -55,10 +71,32 @@ export default function DeviceDetailPage() {
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-gray-600">Application</dt><dd className="font-mono text-xs">{String(d.applicationId ?? "—")}</dd></div>
             <div className="flex justify-between"><dt className="text-gray-600">Profile</dt><dd className="font-mono text-xs">{String(d.deviceProfileId ?? "—")}</dd></div>
-            <div className="flex justify-between"><dt className="text-gray-600">JoinEUI</dt><dd className="font-mono text-xs">{String(d.joinEui ?? "—")}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">App EUI / JoinEUI</dt><dd className="font-mono text-xs">{String(d.joinEui ?? "—")}</dd></div>
             <div className="flex justify-between"><dt className="text-gray-600">Désactivé</dt><dd>{d.isDisabled ? "Oui" : "Non"}</dd></div>
           </dl>
         </Section>
+
+        {write && (
+          <Section title="Clés OTAA (AppKey)">
+            <p className="mb-3 text-sm text-gray-600">
+              ChirpStack ne renvoie jamais la clé en lecture. Saisissez l&apos;AppKey (32 caractères hex) identique à celle du capteur pour permettre le join OTAA.
+            </p>
+            <form onSubmit={saveKeys} className="space-y-3">
+              <input
+                className="w-full rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 font-mono text-sm"
+                placeholder="AppKey (32 hex)"
+                value={appKey}
+                onChange={(e) => setAppKey(e.target.value)}
+                required
+              />
+              <button type="submit" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white">
+                Enregistrer AppKey
+              </button>
+              {keysMsg && <p className="text-sm text-green-700">{keysMsg}</p>}
+              {keysErr && <p className="text-sm text-red-600">{keysErr}</p>}
+            </form>
+          </Section>
+        )}
 
         <Section title="Radio 24h">
           {radio ? (

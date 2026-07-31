@@ -224,6 +224,24 @@ func (c *Client) CreateDevice(ctx context.Context, devEUI, name, applicationID, 
 	return c.postJSON(ctx, "/api/devices", map[string]any{"device": device})
 }
 
+func (c *Client) CreateDeviceKeys(ctx context.Context, devEUI, appKey, nwkKey string) (map[string]any, error) {
+	devEUI = strings.ToLower(devEUI)
+	keys := map[string]any{
+		"devEui": devEUI,
+		"appKey": strings.ToLower(appKey),
+	}
+	if nwkKey != "" {
+		keys["nwkKey"] = strings.ToLower(nwkKey)
+	} else {
+		keys["nwkKey"] = strings.ToLower(appKey)
+	}
+	_, err := c.postJSON(ctx, "/api/devices/"+url.PathEscape(devEUI)+"/keys", map[string]any{"deviceKeys": keys})
+	if err != nil {
+		return c.putJSON(ctx, "/api/devices/"+url.PathEscape(devEUI)+"/keys", map[string]any{"deviceKeys": keys})
+	}
+	return keys, nil
+}
+
 func (c *Client) UpdateDevice(ctx context.Context, devEUI string, updates map[string]any) (map[string]any, error) {
 	current, err := c.GetDevice(ctx, devEUI)
 	if err != nil {

@@ -33,7 +33,7 @@ export default function DevicesPage() {
   const [apps, setApps] = useState<AppRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ devEui: "", name: "", applicationId: "", deviceProfileId: "", joinEui: "" });
+  const [form, setForm] = useState({ devEui: "", name: "", applicationId: "", deviceProfileId: "", joinEui: "", appKey: "" });
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [appFilter, setAppFilter] = useState("");
@@ -85,7 +85,7 @@ export default function DevicesPage() {
       return;
     }
     setShowForm(false);
-    setForm({ devEui: "", name: "", applicationId: "", deviceProfileId: "", joinEui: "" });
+    setForm({ devEui: "", name: "", applicationId: "", deviceProfileId: "", joinEui: "", appKey: "" });
     load();
   }
 
@@ -181,7 +181,11 @@ export default function DevicesPage() {
                 );
               })}
             </select>
-            <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm sm:col-span-2" placeholder="JoinEUI (OTAA, optionnel)" value={form.joinEui} onChange={(e) => setForm({ ...form, joinEui: e.target.value })} />
+            <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm sm:col-span-2" placeholder="App EUI / JoinEUI (16 hex, OTAA)" value={form.joinEui} onChange={(e) => setForm({ ...form, joinEui: e.target.value })} />
+            <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm sm:col-span-2 font-mono" placeholder="AppKey (32 hex, OTAA)" value={form.appKey} onChange={(e) => setForm({ ...form, appKey: e.target.value })} />
+            <p className="sm:col-span-2 text-xs text-gray-500">
+              Pour OTAA : renseignez App EUI (JoinEUI) et AppKey comme dans ChirpStack. La clé doit correspondre à celle programmée sur le capteur.
+            </p>
             <button type="submit" className="sm:col-span-2 rounded-lg bg-brand py-2 font-medium text-white">
               Créer device
             </button>

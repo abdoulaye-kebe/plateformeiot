@@ -72,7 +72,13 @@ type createDeviceRequest struct {
 	ApplicationID   string `json:"applicationId"`
 	DeviceProfileID string `json:"deviceProfileId"`
 	JoinEUI         string `json:"joinEui"`
+	AppKey          string `json:"appKey"`
 	Description     string `json:"description"`
+}
+
+type setDeviceKeysRequest struct {
+	AppKey string `json:"appKey"`
+	NwkKey string `json:"nwkKey"`
 }
 
 func (d Deps) createDevice(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +106,34 @@ func (d Deps) createDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	if req.AppKey != "" {
+		if _, err := d.ChirpStack.CreateDeviceKeys(r.Context(), req.DevEUI, req.AppKey, ""); err != nil {
+			writeError(w, http.StatusBadGateway, "device created but keys failed: "+err.Error())
+			return
+		}
+	}
 	writeJSON(w, http.StatusCreated, data)
+}
+
+func (d Deps) setDeviceKeys(w http.ResponseWriter, r *http.Request) {
+	if !d.canWriteLoRaWAN(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	devEUI := chi.URLParam(r, "devEui")
+	if !d.assertDeviceInTenant(w, r, devEUI) {
+		return
+	}
+	var req setDeviceKeysRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AppKey == "" {
+		writeError(w, http.StatusBadRequest, "appKey required")
+		return
+	}
+	if _, err := d.ChirpStack.CreateDeviceKeys(r.Context(), devEUI, req.AppKey, req.NwkKey); err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 type updateDeviceRequest struct {

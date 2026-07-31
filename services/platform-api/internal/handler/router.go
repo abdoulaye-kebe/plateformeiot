@@ -98,6 +98,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/devices", deps.createDevice)
 			r.Get("/devices/{devEui}", deps.getDevice)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/devices/{devEui}", deps.updateDevice)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/devices/{devEui}/keys", deps.setDeviceKeys)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Delete("/devices/{devEui}", deps.deleteDevice)
 			r.Get("/devices/{devEui}/events", deps.getDeviceEvents)
 			r.Get("/devices/{devEui}/payloads", deps.listDevicePayloads)
