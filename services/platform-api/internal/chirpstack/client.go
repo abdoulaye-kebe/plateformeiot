@@ -269,9 +269,10 @@ func (c *Client) GetGateway(ctx context.Context, gatewayID string) (map[string]a
 
 func (c *Client) CreateGateway(ctx context.Context, tenantID, gatewayID, name, description string) (map[string]any, error) {
 	gateway := map[string]any{
-		"gatewayId": strings.ToLower(gatewayID),
-		"name":      name,
-		"tenantId":  tenantID,
+		"gatewayId":        strings.ToLower(gatewayID),
+		"name":             name,
+		"tenantId":         tenantID,
+		"downlinkPriority": 1,
 	}
 	if description != "" {
 		gateway["description"] = description
