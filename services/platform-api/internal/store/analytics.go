@@ -128,6 +128,88 @@ func (s *AnalyticsStore) DeviceRadio(ctx context.Context, tenantID *uuid.UUID, d
 	return &summary, nil
 }
 
+type LinkMetricBucket struct {
+	Bucket time.Time `json:"bucket"`
+	Count  int64     `json:"count"`
+}
+
+type LinkMetricPoint struct {
+	Time time.Time `json:"time"`
+	RSSI *int      `json:"rssi,omitempty"`
+	SNR  *float64  `json:"snr,omitempty"`
+}
+
+type DeviceLinkMetrics struct {
+	DevEUI   string             `json:"devEui"`
+	Received []LinkMetricBucket `json:"received"`
+	Points   []LinkMetricPoint  `json:"points"`
+}
+
+func (s *AnalyticsStore) DeviceLinkMetrics(ctx context.Context, tenantID *uuid.UUID, devEUI string, hours int, bucketInterval string) (*DeviceLinkMetrics, error) {
+	if bucketInterval == "" {
+		bucketInterval = "1 hour"
+	}
+
+	tenantFilter := ""
+	args := []any{devEUI, hours, bucketInterval}
+	tenantArg := ""
+	if tenantID != nil {
+		tenantFilter = " AND tenant_id = $4"
+		tenantArg = " AND tenant_id = $3"
+		args = append(args, *tenantID)
+	}
+
+	bucketQuery := fmt.Sprintf(`
+		SELECT time_bucket($3::interval, time) AS bucket, count(*)::bigint
+		FROM uplink_frames
+		WHERE dev_eui = $1 AND time > NOW() - ($2::int * interval '1 hour')%s
+		GROUP BY bucket ORDER BY bucket`, tenantFilter)
+
+	rows, err := s.pool.Query(ctx, bucketQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := &DeviceLinkMetrics{DevEUI: devEUI, Received: []LinkMetricBucket{}, Points: []LinkMetricPoint{}}
+	for rows.Next() {
+		var b LinkMetricBucket
+		if err := rows.Scan(&b.Bucket, &b.Count); err != nil {
+			return nil, err
+		}
+		out.Received = append(out.Received, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	pointsQuery := fmt.Sprintf(`
+		SELECT time, rssi, snr
+		FROM uplink_frames
+		WHERE dev_eui = $1 AND time > NOW() - ($2::int * interval '1 hour')%s
+		ORDER BY time`, tenantArg)
+
+	pointArgs := []any{devEUI, hours}
+	if tenantID != nil {
+		pointArgs = append(pointArgs, *tenantID)
+	}
+
+	pointRows, err := s.pool.Query(ctx, pointsQuery, pointArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer pointRows.Close()
+
+	for pointRows.Next() {
+		var p LinkMetricPoint
+		if err := pointRows.Scan(&p.Time, &p.RSSI, &p.SNR); err != nil {
+			return nil, err
+		}
+		out.Points = append(out.Points, p)
+	}
+	return out, pointRows.Err()
+}
+
 type OverviewStats struct {
 	TotalUplinks24h   int64    `json:"totalUplinks24h"`
 	ActiveDevices24h  int64    `json:"activeDevices24h"`

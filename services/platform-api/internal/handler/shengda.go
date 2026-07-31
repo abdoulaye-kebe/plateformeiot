@@ -3,11 +3,15 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -218,8 +222,37 @@ func (d Deps) applyShengdaCodec(w http.ResponseWriter, r *http.Request) {
 
 type enqueueDownlinkRequest struct {
 	Data      string `json:"data"`
+	DataHex   string `json:"dataHex"`
 	FPort     int    `json:"fPort"`
 	Confirmed bool   `json:"confirmed"`
+}
+
+func downlinkPayloadBase64(dataB64, dataHex string) (string, error) {
+	if dataB64 != "" {
+		return dataB64, nil
+	}
+	dataHex = strings.ReplaceAll(strings.TrimSpace(dataHex), " ", "")
+	if dataHex == "" {
+		return "", errors.New("data or dataHex required")
+	}
+	raw, err := hex.DecodeString(dataHex)
+	if err != nil {
+		return "", errors.New("invalid dataHex")
+	}
+	return base64.StdEncoding.EncodeToString(raw), nil
+}
+
+func (d Deps) listDeviceDownlinkQueue(w http.ResponseWriter, r *http.Request) {
+	devEUI := chi.URLParam(r, "devEui")
+	if !d.assertDeviceInTenant(w, r, devEUI) {
+		return
+	}
+	data, err := d.ChirpStack.GetDownlinkQueue(r.Context(), devEUI)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
 }
 
 func (d Deps) enqueueDeviceDownlink(w http.ResponseWriter, r *http.Request) {
@@ -232,14 +265,19 @@ func (d Deps) enqueueDeviceDownlink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req enqueueDownlinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Data == "" {
-		writeError(w, http.StatusBadRequest, "data (base64) required")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	payloadB64, err := downlinkPayloadBase64(req.Data, req.DataHex)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if req.FPort <= 0 {
-		req.FPort = 2
+		req.FPort = 1
 	}
-	data, err := d.ChirpStack.EnqueueDownlink(r.Context(), devEUI, req.Data, req.FPort, req.Confirmed)
+	data, err := d.ChirpStack.EnqueueDownlink(r.Context(), devEUI, payloadB64, req.FPort, req.Confirmed)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

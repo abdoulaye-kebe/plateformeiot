@@ -380,6 +380,10 @@ func (c *Client) EnqueueDownlink(ctx context.Context, devEUI string, dataBase64 
 	return c.postJSON(ctx, "/api/devices/"+url.PathEscape(strings.ToLower(devEUI))+"/queue", body)
 }
 
+func (c *Client) GetDownlinkQueue(ctx context.Context, devEUI string) (map[string]any, error) {
+	return c.getJSON(ctx, "/api/devices/"+url.PathEscape(strings.ToLower(devEUI))+"/queue")
+}
+
 func (c *Client) FlushDownlinkQueue(ctx context.Context, devEUI string) error {
 	return c.delete(ctx, "/api/devices/"+url.PathEscape(strings.ToLower(devEUI))+"/queue")
 }

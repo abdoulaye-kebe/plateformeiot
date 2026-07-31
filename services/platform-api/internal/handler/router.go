@@ -103,6 +103,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.Get("/devices/{devEui}/events", deps.getDeviceEvents)
 			r.Get("/devices/{devEui}/payloads", deps.listDevicePayloads)
 			r.Get("/payloads/{id}/download", deps.getPayloadDownloadURL)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{devEui}/downlink", deps.listDeviceDownlinkQueue)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/devices/{devEui}/downlink", deps.enqueueDeviceDownlink)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/devices/{devEui}/downlink", deps.flushDeviceDownlink)
 
@@ -128,6 +129,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/overview", deps.analyticsOverview)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/traffic", deps.analyticsTraffic)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{devEui}/radio", deps.analyticsDeviceRadio)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{devEui}/link-metrics", deps.analyticsDeviceLinkMetrics)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/traffic", deps.analyticsDevicesTraffic)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/anomalies", deps.listAnomaliesLicensed)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Patch("/anomalies/{id}/resolve", deps.resolveAnomaly)

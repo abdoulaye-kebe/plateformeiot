@@ -6,6 +6,8 @@ import Link from "next/link";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, Section, RoleBanner } from "@/components/ui";
+import DeviceLinkMetricsPanel from "@/components/DeviceLinkMetricsPanel";
+import DeviceDownlinkQueuePanel from "@/components/DeviceDownlinkQueuePanel";
 
 export default function DeviceDetailPage() {
   const params = useParams();
@@ -13,6 +15,7 @@ export default function DeviceDetailPage() {
   const devEui = String(params.devEui ?? "").toLowerCase();
   const { write } = useClientAuth();
   const [device, setDevice] = useState<Record<string, unknown> | null>(null);
+  const [deviceMeta, setDeviceMeta] = useState<Record<string, unknown>>({});
   const [events, setEvents] = useState<unknown[]>([]);
   const [payloads, setPayloads] = useState<Array<{ id: number; time: string; payloadHex?: string; payloadSize: number; fPort?: number }>>([]);
   const [radio, setRadio] = useState<Record<string, unknown> | null>(null);
@@ -28,7 +31,12 @@ export default function DeviceDetailPage() {
       apiFetch<{ result?: Array<{ id: number; time: string; payloadHex?: string; payloadSize: number; fPort?: number }> }>(`/api/v1/lorawan/devices/${devEui}/payloads?limit=10`),
       apiFetch<Record<string, unknown>>(`/api/v1/analytics/devices/${devEui}/radio?hours=24`),
     ]).then(([d, e, p, r]) => {
-      setDevice((d?.device as Record<string, unknown>) ?? d);
+      const nested = (d?.device as Record<string, unknown>) ?? {};
+      setDevice(nested);
+      setDeviceMeta({
+        lastSeenAt: d?.lastSeenAt ?? nested.lastSeenAt,
+        deviceProfileName: d?.deviceProfileName ?? nested.deviceProfileName,
+      });
       setEvents(e?.result ?? []);
       setPayloads(p?.result ?? []);
       setRadio(r);
@@ -66,6 +74,15 @@ export default function DeviceDetailPage() {
       />
       <RoleBanner />
 
+      <div className="mb-6 grid gap-6">
+        <DeviceLinkMetricsPanel
+          devEui={devEui}
+          lastSeenAt={deviceMeta.lastSeenAt as string | undefined}
+          profileName={String(deviceMeta.deviceProfileName ?? d.deviceProfileId ?? "—")}
+          enabled={!d.isDisabled}
+        />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Informations">
           <dl className="space-y-2 text-sm">
@@ -97,6 +114,10 @@ export default function DeviceDetailPage() {
             </form>
           </Section>
         )}
+
+        <div className="lg:col-span-2">
+          <DeviceDownlinkQueuePanel devEui={devEui} write={write} />
+        </div>
 
         <Section title="Radio 24h">
           {radio ? (

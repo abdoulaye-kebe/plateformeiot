@@ -129,6 +129,35 @@ func (d Deps) analyticsDeviceRadio(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
+func linkMetricsRange(r *http.Request) (hours int, bucket string) {
+	switch strings.ToLower(r.URL.Query().Get("range")) {
+	case "31d", "31":
+		return 744, "1 day"
+	case "1y", "365d", "year":
+		return 8760, "1 week"
+	default:
+		return queryInt(r, "hours", 24), "1 hour"
+	}
+}
+
+func (d Deps) analyticsDeviceLinkMetrics(w http.ResponseWriter, r *http.Request) {
+	scope, ok := d.dataTenantScope(w, r)
+	if !ok {
+		return
+	}
+	devEUI := chi.URLParam(r, "devEui")
+	if !d.assertDeviceInTenant(w, r, devEUI) {
+		return
+	}
+	hours, bucket := linkMetricsRange(r)
+	metrics, err := d.Analytics.DeviceLinkMetrics(r.Context(), scope, devEUI, hours, bucket)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
 func (d Deps) analyticsDevicesTraffic(w http.ResponseWriter, r *http.Request) {
 	scope, ok := d.dataTenantScope(w, r)
 	if !ok {
