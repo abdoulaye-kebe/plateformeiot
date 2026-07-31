@@ -15,7 +15,13 @@ fi
 
 REST_URL="${CHIRPSTACK_REST_URL:-http://localhost:8090}"
 TENANT_ID="${CHIRPSTACK_TENANT_ID:-}"
-API_URL="${NEXT_PUBLIC_PLATFORM_API_URL:-http://localhost:8081}"
+API_URL="${PLATFORM_API_URL:-${NEXT_PUBLIC_PLATFORM_API_URL:-http://localhost:8081}}"
+
+# Sur la VM, NEXT_PUBLIC_PLATFORM_API_URL pointe souvent vers l'IP publique (console navigateur).
+# Les checks curl locaux doivent passer par localhost, pas par l'IP publique (hairpin / SG).
+if [[ "$REST_URL" == *localhost* || "$REST_URL" == *127.0.0.1* ]]; then
+  API_URL="http://localhost:8081"
+fi
 KC_URL="${KEYCLOAK_ADMIN_URL:-http://127.0.0.1:8082}"
 REALM="${KEYCLOAK_REALM:-lorawan}"
 KC_CLIENT="${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID:-lorawan-console}"
