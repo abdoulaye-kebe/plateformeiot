@@ -31,5 +31,6 @@ run "Starter agent" "$ROOT/infra/platform/postgres/010_starter_agent_feature.sql
 run "Connecteurs métier" "$ROOT/infra/platform/postgres/011_tenant_connectors.sql"
 run "Connecteur MCP" "$ROOT/infra/platform/postgres/012_mcp_connector.sql"
 run "Shengda water" "$ROOT/infra/platform/postgres/013_shengda_water.sql"
+run "Decoders tenant" "$ROOT/infra/platform/postgres/014_tenant_decoders.sql"
 
 echo "✓ Toutes les migrations appliquées"

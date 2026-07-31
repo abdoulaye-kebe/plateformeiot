@@ -1,3 +1,5 @@
+"use client";
+
 import DataShell from "@/components/DataShell";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 

@@ -38,6 +38,7 @@ type Deps struct {
 	RfScan               *store.RfScanStore
 	CustomDashboards     *store.CustomDashboardStore
 	Connectors           *store.ConnectorStore
+	Decoders             *store.DecoderStore
 	Auth                 *auth.Validator
 	TenantID             string
 	ChirpStackRESTURL    string
@@ -178,6 +179,16 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/decode", deps.decodeShengdaPayload)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/codec", deps.getShengdaCodec)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/codec/apply", deps.applyShengdaCodec)
+		})
+
+		r.Route("/decoders", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/", deps.listDecoders)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/template", deps.getDecoderTemplate)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/", deps.createDecoder)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/{id}", deps.getDecoder)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/{id}", deps.updateDecoder)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/{id}", deps.deleteDecoder)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/{id}/apply", deps.applyDecoder)
 		})
 
 		r.Route("/connectors", func(r chi.Router) {
