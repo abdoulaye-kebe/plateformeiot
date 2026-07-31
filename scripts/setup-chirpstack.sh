@@ -16,7 +16,11 @@ fi
 set_env() {
   local key="$1" val="$2"
   if grep -q "^${key}=" "$ENV_FILE"; then
-    sed -i '' "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+    if sed --version >/dev/null 2>&1; then
+      sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+    else
+      sed -i '' "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+    fi
   else
     echo "${key}=${val}" >> "$ENV_FILE"
   fi
