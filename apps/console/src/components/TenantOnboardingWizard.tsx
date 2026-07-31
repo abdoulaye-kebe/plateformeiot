@@ -279,7 +279,8 @@ export default function TenantOnboardingWizard({
                     <div className="space-y-3 text-sm text-gray-700">
                       <ol className="list-decimal space-y-2 pl-5">
                         <li>Configurez la gateway physique avec le <strong>Gateway ID</strong> enregistré ci-dessus.</li>
-                        <li>Pointez la gateway vers <code className="rounded bg-gray-100 px-1">localhost:1700</code> (UDP) ou le bridge BasicStation.</li>
+                        <li>Pointez la gateway vers <code className="rounded bg-gray-100 px-1">{typeof window !== "undefined" ? `${window.location.hostname}:1700` : "<IP_VM>:1700"}</code> (UDP Semtech v2) ou BasicStation sur le port <code className="rounded bg-gray-100 px-1">3001</code>.</li>
+                        <li>Activez l&apos;envoi des <strong>statistiques gateway (STATS)</strong> toutes les 30 s — sans cela ChirpStack reste OFFLINE.</li>
                         <li>Provisionnez le device (OTAA/ABP) avec le DevEUI créé sur la plateforme.</li>
                         <li>Envoyez un uplink test — le dashboard affichera les données sous 30 secondes.</li>
                       </ol>

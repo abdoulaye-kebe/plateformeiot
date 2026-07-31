@@ -291,6 +291,7 @@ func (c *Client) CreateGateway(ctx context.Context, tenantID, gatewayID, name, d
 		"name":             name,
 		"tenantId":         tenantID,
 		"downlinkPriority": 1,
+		"statsInterval":    30,
 	}
 	if description != "" {
 		gateway["description"] = description

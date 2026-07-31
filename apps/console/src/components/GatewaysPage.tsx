@@ -10,8 +10,9 @@ type GatewayRow = {
   gatewayId?: string;
   name?: string;
   state?: string;
+  lastSeenAt?: string;
   rfScanSupported?: boolean;
-  gateway?: Record<string, unknown> & { rfScanSupported?: boolean };
+  gateway?: Record<string, unknown> & { rfScanSupported?: boolean; lastSeenAt?: string; state?: string };
 };
 
 function rfScanCapable(row: GatewayRow) {
@@ -74,18 +75,20 @@ export default function GatewaysPage() {
           <EmptyState message="Aucune gateway — ajoutez-en une pour recevoir des uplinks." />
         ) : (
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-gray-600 border-b border-gray-200"><th className="pb-2">Nom</th><th>ID</th><th>État</th><th>RF</th><th></th></tr></thead>
+            <thead><tr className="text-left text-gray-600 border-b border-gray-200"><th className="pb-2">Nom</th><th>ID</th><th>État</th><th>Dernière activité</th><th>RF</th><th></th></tr></thead>
             <tbody>
               {gateways.map((g) => {
                 const id = gwIdOf(g);
                 const name = g.name ?? (g.gateway as { name?: string })?.name ?? id;
                 const state = g.state ?? (g.gateway as { state?: string })?.state ?? "UNKNOWN";
+                const lastSeen = g.lastSeenAt ?? (g.gateway as { lastSeenAt?: string })?.lastSeenAt;
                 const rf = rfScanCapable(g);
                 return (
                   <tr key={id} className="border-b border-gray-200/50">
                     <td className="py-3 font-medium">{name}</td>
                     <td className="font-mono text-xs text-gray-500">{id}</td>
                     <td><StatusBadge status={state} /></td>
+                    <td className="text-xs text-gray-500">{lastSeen ? new Date(lastSeen).toLocaleString("fr-FR") : "Jamais"}</td>
                     <td>{rf ? <span className="text-xs font-medium text-brand">Scan RF</span> : <span className="text-xs text-gray-400">—</span>}</td>
                     <td className="text-right"><Link href={`/gateways/${id}`} className="text-brand hover:underline">Détails →</Link></td>
                   </tr>
