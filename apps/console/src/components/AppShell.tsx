@@ -40,12 +40,6 @@ const MAIN_NAV: NavItem[] = [
     match: (p) => p.startsWith("/applications"),
   },
   {
-    href: "/apps",
-    label: "Apps métier",
-    roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
-    match: (p) => p.startsWith("/apps"),
-  },
-  {
     href: "/data/messages",
     label: "Data",
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
