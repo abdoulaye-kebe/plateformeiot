@@ -179,7 +179,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters/{devEui}/readings", deps.listShengdaReadings)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/meters/{devEui}/commands", deps.listShengdaCommands)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/meters/{devEui}/commands", deps.sendShengdaCommand)
-			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/decode", deps.decodeShengdaPayload)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/decode", deps.postShengdaDecode)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/codec", deps.getShengdaCodec)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/codec/apply", deps.applyShengdaCodec)
 		})

@@ -124,7 +124,7 @@ func (d Deps) sendShengdaCommand(w http.ResponseWriter, r *http.Request) {
 	d.proxyShengda(w, r, http.MethodPost, "/meters/"+devEUI+"/commands", bytes.NewReader(raw))
 }
 
-func (d Deps) decodeShengdaPayload(w http.ResponseWriter, r *http.Request) {
+func (d Deps) postShengdaDecode(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid body")
