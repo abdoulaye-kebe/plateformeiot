@@ -147,6 +147,41 @@ class ShengdaStore:
                 row = cur.fetchone()
                 return row[0] if row else None
 
+    def get_latest_payload_archive(self, tenant_id: str, dev_eui: str) -> dict[str, Any] | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT time, payload_hex, f_port, f_cnt
+                    FROM payload_archives
+                    WHERE tenant_id = %s::uuid AND dev_eui = %s
+                      AND COALESCE(payload_hex, '') <> ''
+                    ORDER BY time DESC
+                    LIMIT 1
+                    """,
+                    (tenant_id, dev_eui.lower()),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                cols = [d[0] for d in cur.description]
+                return dict(zip(cols, row, strict=True))
+
+    def get_latest_dev_eui_with_payload(self, tenant_id: str) -> str | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT dev_eui FROM payload_archives
+                    WHERE tenant_id = %s::uuid AND COALESCE(payload_hex, '') <> ''
+                    ORDER BY time DESC
+                    LIMIT 1
+                    """,
+                    (tenant_id,),
+                )
+                row = cur.fetchone()
+                return row[0].lower() if row else None
+
     def list_meters(self, tenant_id: str, limit: int = 100) -> list[dict[str, Any]]:
         with psycopg.connect(self.database_url) as conn:
             with conn.cursor() as cur:

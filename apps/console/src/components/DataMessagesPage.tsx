@@ -17,6 +17,8 @@ type MessageRow = {
   payloadSize: number;
   fPort?: number;
   fCnt?: number;
+  decoded?: Record<string, unknown>;
+  decodePreview?: string;
 };
 
 type AppRow = { id?: string; application?: { id?: string; name?: string } };
@@ -74,16 +76,16 @@ export default function DataMessagesPage() {
 
   useEffect(() => {
     (async () => {
+      const tpl = await apiFetch<{ script?: string }>("/api/v1/decoders/template/shengda");
+      if (tpl?.script) {
+        setDecoderScript(tpl.script);
+        return;
+      }
       const list = await apiFetch<{ result?: DecoderRow[] }>("/api/v1/decoders");
       const tenant =
         list?.result?.find((d) => d.vendor === "shengda" && d.script) ??
         list?.result?.find((d) => d.script);
-      if (tenant?.script) {
-        setDecoderScript(tenant.script);
-        return;
-      }
-      const tpl = await apiFetch<{ script?: string }>("/api/v1/decoders/template/shengda");
-      setDecoderScript(tpl?.script ?? null);
+      setDecoderScript(tenant?.script ?? null);
     })();
   }, []);
 
@@ -92,12 +94,30 @@ export default function DataMessagesPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!decoderScript || messages.length === 0) {
+    if (messages.length === 0) {
       setDecodedById({});
       return;
     }
     const next: Record<number, DecodedEntry> = {};
     for (const m of messages) {
+      if (m.decoded && Object.keys(m.decoded).length > 0) {
+        next[m.id] = {
+          data: { data: m.decoded },
+          preview: m.decodePreview || formatDecodedPreview({ data: m.decoded }),
+        };
+      }
+    }
+    const withPayload = messages.filter((m) => m.payloadHex);
+    if (withPayload.length > 0 && withPayload.every((m) => next[m.id])) {
+      setDecodedById(next);
+      return;
+    }
+    if (!decoderScript) {
+      setDecodedById(next);
+      return;
+    }
+    for (const m of messages) {
+      if (next[m.id]) continue;
       if (!m.payloadHex) continue;
       try {
         const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);

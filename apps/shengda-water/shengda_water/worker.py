@@ -143,6 +143,125 @@ def _resolve_tenant_id(tenant_id: str | None, chirpstack_tenant_id: str | None) 
     raise HTTPException(status_code=422, detail="tenantId or chirpstackTenantId required")
 
 
+def _valve_status(valve_open: bool | None) -> str:
+    if valve_open is True:
+        return "ouverte"
+    if valve_open is False:
+        return "fermée"
+    return "inconnu"
+
+
+def _has_telemetry_values(
+    meter: dict[str, Any] | None,
+    readings: list[dict[str, Any]],
+    live: dict[str, Any] | None,
+) -> bool:
+    latest = readings[0] if readings else None
+    return any(
+        v is not None
+        for v in (
+            (meter or {}).get("last_index_m3"),
+            (meter or {}).get("battery_v"),
+            (meter or {}).get("valve_open"),
+            (latest or {}).get("index_m3"),
+            (latest or {}).get("battery_v"),
+            (live or {}).get("indexM3"),
+            (live or {}).get("batteryV"),
+            (live or {}).get("valveOpen"),
+        )
+    )
+
+
+def _build_meter_telemetry(
+    tenant: str,
+    dev_eui: str,
+    readings_limit: int = 5,
+) -> dict[str, Any]:
+    dev_eui = dev_eui.lower()
+    source = "shengda-store"
+    meter = store.get_meter(tenant, dev_eui)
+    readings = store.list_readings(tenant, dev_eui, readings_limit)
+    live: dict[str, Any] | None = None
+
+    if not _has_telemetry_values(meter, readings, live):
+        archive = store.get_latest_payload_archive(tenant, dev_eui)
+        if archive and archive.get("payload_hex"):
+            try:
+                decoded = decode_payload(str(archive["payload_hex"])).to_dict()
+                event_time = archive.get("time")
+                live = {
+                    **decoded,
+                    "eventTime": event_time.isoformat() if hasattr(event_time, "isoformat") else event_time,
+                    "fCnt": archive.get("f_cnt"),
+                    "fPort": archive.get("f_port"),
+                }
+                source = "payload-archive"
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("archive decode skip devEui=%s: %s", dev_eui, exc)
+
+    latest = readings[0] if readings else None
+    valve_open = _first_value(
+        (meter or {}).get("valve_open"),
+        (latest or {}).get("valve_open"),
+        (live or {}).get("valveOpen") if live else None,
+    )
+    out: dict[str, Any] = {
+        "devEui": dev_eui,
+        "name": (meter or {}).get("name") or dev_eui,
+        "meterNumber": (meter or {}).get("meter_number"),
+        "indexM3": _first_value(
+            (meter or {}).get("last_index_m3"),
+            (latest or {}).get("index_m3"),
+            (live or {}).get("indexM3") if live else None,
+        ),
+        "indexLiters": _first_value(
+            (meter or {}).get("last_index_liters"),
+            (latest or {}).get("index_liters"),
+            (live or {}).get("indexLiters") if live else None,
+        ),
+        "batteryV": _first_value(
+            (meter or {}).get("battery_v"),
+            (latest or {}).get("battery_v"),
+            (live or {}).get("batteryV") if live else None,
+        ),
+        "valveOpen": valve_open,
+        "valveStatus": _valve_status(valve_open),
+        "valveFault": _first_value((meter or {}).get("valve_fault"), (live or {}).get("valveFault") if live else None),
+        "batteryLow": _first_value((meter or {}).get("battery_low"), (live or {}).get("batteryLow") if live else None),
+        "magneticAttack": _first_value(
+            (meter or {}).get("magnetic_attack"),
+            (live or {}).get("magneticAttack") if live else None,
+        ),
+        "lastReadingAt": _first_value(
+            (meter or {}).get("last_reading_at"),
+            (latest or {}).get("time"),
+            (live or {}).get("eventTime") if live else None,
+        ),
+        "triggerLabel": (latest or {}).get("trigger_label") or ((live or {}).get("triggerLabel") if live else None),
+        "recentReadings": readings[:5],
+        "source": source,
+    }
+    return out
+
+
+def _first_value(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _pick_best_meter_dev_eui(meters: list[dict[str, Any]]) -> str:
+    for meter in meters:
+        if meter.get("last_index_m3") is not None or meter.get("battery_v") is not None:
+            dev_eui = (meter.get("dev_eui") or "").lower()
+            if dev_eui:
+                return dev_eui
+    if meters:
+        return (meters[0].get("dev_eui") or "").lower()
+    return ""
+
+
 @app.get("/codec")
 async def get_codec() -> dict[str, Any]:
     codec_path = os.path.join(os.path.dirname(__file__), "..", "chirpstack", "shengda-v1.6.codec.js")
@@ -196,6 +315,41 @@ async def get_readings(
     tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
     readings = store.list_readings(tenant, dev_eui, limit)
     return {"result": readings, "totalCount": len(readings)}
+
+
+@app.get("/meters/latest/telemetry")
+async def get_latest_meter_telemetry(
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+    readingsLimit: int = Query(5, ge=1, le=20),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    meters = store.list_meters(tenant, 20)
+    if meters:
+        dev_eui = _pick_best_meter_dev_eui(meters)
+        if dev_eui:
+            out = _build_meter_telemetry(tenant, dev_eui, readings_limit=readingsLimit)
+            out["autoSelected"] = True
+            out["meterCount"] = len(meters)
+            return out
+    dev_eui = store.get_latest_dev_eui_with_payload(tenant)
+    if dev_eui:
+        out = _build_meter_telemetry(tenant, dev_eui, readings_limit=readingsLimit)
+        out["autoSelected"] = True
+        out["meterCount"] = 0
+        return out
+    raise HTTPException(status_code=404, detail="no meter found")
+
+
+@app.get("/meters/{dev_eui}/telemetry")
+async def get_meter_telemetry(
+    dev_eui: str,
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+    readingsLimit: int = Query(5, ge=1, le=20),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    return _build_meter_telemetry(tenant, dev_eui, readings_limit=readingsLimit)
 
 
 @app.get("/meters/{dev_eui}/commands")

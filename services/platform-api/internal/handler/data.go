@@ -42,8 +42,20 @@ func (d Deps) listDataMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	total, _ := d.Payloads.CountMessages(r.Context(), scope, filter)
 
+	rows := make([]dataMessageRow, 0, len(records))
+	for _, rec := range records {
+		row := dataMessageRow{PayloadRecord: rec}
+		if rec.PayloadHex != "" {
+			if decoded, err := d.decodeShengdaPayload(r.Context(), rec.PayloadHex); err == nil {
+				row.Decoded = decoded
+				row.DecodePreview = formatDecodePreview(decoded)
+			}
+		}
+		rows = append(rows, row)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"result":     records,
+		"result":     rows,
 		"totalCount": total,
 	})
 }

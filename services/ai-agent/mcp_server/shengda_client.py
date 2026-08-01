@@ -57,9 +57,6 @@ class ShengdaClient:
     async def list_meters(self, limit: int = 50) -> dict[str, Any]:
         return await self._get("/meters", {"limit": min(limit, 200)})
 
-    async def get_meter(self, dev_eui: str) -> dict[str, Any]:
-        return await self._get(f"/meters/{dev_eui.strip().lower()}")
-
     async def list_readings(self, dev_eui: str, limit: int = 10) -> dict[str, Any]:
         return await self._get(f"/meters/{dev_eui.strip().lower()}/readings", {"limit": min(limit, 50)})
 
@@ -68,75 +65,42 @@ class ShengdaClient:
         return await self._post("/decode", {"hex": hex_payload})
 
     async def get_meter_telemetry(self, dev_eui: str, readings_limit: int = 5) -> dict[str, Any]:
-        """Dernier relevé compteur : index m³, batterie, vanne, alarmes."""
         dev_eui = dev_eui.strip().lower()
-        source = "shengda-store"
-        meter: dict[str, Any] | None = None
-        readings: list[dict[str, Any]] = []
+        result = await self._get(
+            f"/meters/{dev_eui}/telemetry",
+            {"readingsLimit": min(readings_limit, 20)},
+        )
+        return await self._enrich_with_device(dev_eui, result)
 
+    async def get_latest_meter_telemetry(self, readings_limit: int = 5) -> dict[str, Any]:
         try:
-            meter = await self.get_meter(dev_eui)
+            result = await self._get("/meters/latest/telemetry", {"readingsLimit": min(readings_limit, 20)})
+            dev_eui = (result.get("devEui") or "").lower()
+            if dev_eui:
+                return await self._enrich_with_device(dev_eui, result)
+            return result
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code != 404:
                 raise
-
-        try:
-            readings_resp = await self.list_readings(dev_eui, limit=readings_limit)
-            readings = readings_resp.get("result", [])
-        except httpx.HTTPStatusError:
-            readings = []
-
-        live: dict[str, Any] | None = None
-        device = await self._device_summary(dev_eui)
-        preview = _build_telemetry(dev_eui, meter, readings, None, device)
-        if not _telemetry_has_values(preview):
-            live = await self._decode_from_chirpstack_events(dev_eui)
-            if live:
-                source = "chirpstack-decode"
-
-        telemetry = _build_telemetry(dev_eui, meter, readings, live, device)
-        telemetry["source"] = source
-        return telemetry
-
-    async def get_latest_meter_telemetry(self, readings_limit: int = 5) -> dict[str, Any]:
-        """Dernière remontée : auto-sélection du compteur le plus récent ou du seul device."""
-        try:
-            meters = (await self.list_meters(limit=20)).get("result", [])
-        except Exception:  # noqa: BLE001
-            meters = []
-
-        if meters:
-            dev_eui = _pick_best_meter_dev_eui(meters)
-            if dev_eui:
-                result = await self.get_meter_telemetry(dev_eui, readings_limit=readings_limit)
-                result["autoSelected"] = True
-                result["meterCount"] = len(meters)
-                return result
 
         try:
             devices = (await self.chirpstack.list_devices(limit=20)).get("result", [])
         except Exception:  # noqa: BLE001
             devices = []
 
-        if not devices:
-            return {"error": "Aucun compteur ni device trouvé sur le réseau."}
-
         if len(devices) == 1:
             dev_eui = (devices[0].get("device", devices[0]).get("devEui") or "").lower()
             result = await self.get_meter_telemetry(dev_eui, readings_limit=readings_limit)
             result["autoSelected"] = True
-            result["meterCount"] = 0
             result["deviceCount"] = 1
             return result
 
-        candidates = [
-            (item.get("device", item).get("devEui") or "").lower()
-            for item in devices
-            if (item.get("device", item).get("devEui") or "")
-        ]
+        if not devices:
+            return {"error": "Aucun compteur ni device trouvé sur le réseau."}
+
         return {
             "error": "Plusieurs devices — précisez le DevEUI (16 hex).",
-            "deviceCount": len(candidates),
+            "deviceCount": len(devices),
             "devices": [
                 {
                     "devEui": item.get("device", item).get("devEui"),
@@ -156,61 +120,17 @@ class ShengdaClient:
                 low.append(meter)
         return {"totalScanned": len(data.get("result", [])), "lowBatteryMeters": low}
 
-    async def _device_summary(self, dev_eui: str) -> dict[str, Any]:
+    async def _enrich_with_device(self, dev_eui: str, result: dict[str, Any]) -> dict[str, Any]:
         try:
             device = await self.chirpstack.get_device(dev_eui)
             body = device.get("device", device)
-            return {
-                "name": body.get("name"),
-                "lastSeenAt": body.get("lastSeenAt"),
-                "applicationId": body.get("applicationId"),
-            }
+            if body.get("name"):
+                result["name"] = body["name"]
+            result["lastSeenAt"] = body.get("lastSeenAt")
+            result["applicationId"] = body.get("applicationId")
         except Exception:  # noqa: BLE001
-            return {}
-
-    async def _decode_from_chirpstack_events(self, dev_eui: str) -> dict[str, Any] | None:
-        try:
-            events = await self.chirpstack.get_device_events(dev_eui, limit=20)
-        except Exception:  # noqa: BLE001
-            return None
-
-        for item in events.get("result", []):
-            event = item.get("event", item)
-            if event.get("type") not in (None, "up"):
-                continue
-
-            obj = event.get("object")
-            if isinstance(obj, dict) and (
-                obj.get("indexM3") is not None or obj.get("batteryV") is not None or obj.get("data", {}).get("indexM3") is not None
-            ):
-                data = obj.get("data") if isinstance(obj.get("data"), dict) else obj
-                return {
-                    "indexM3": data.get("indexM3"),
-                    "indexLiters": data.get("indexLiters"),
-                    "batteryV": data.get("batteryV"),
-                    "valveOpen": data.get("valveOpen"),
-                    "valveFault": data.get("valveFault"),
-                    "batteryLow": data.get("batteryLow"),
-                    "magneticAttack": data.get("magneticAttack"),
-                    "triggerLabel": data.get("triggerLabel"),
-                    "eventTime": event.get("time"),
-                    "fCnt": event.get("fCnt"),
-                    "fPort": event.get("fPort"),
-                }
-
-            payload = event.get("data") or event.get("objectJSON", {}).get("hex")
-            if not payload:
-                continue
-            try:
-                decoded = await self.decode_payload(str(payload))
-            except Exception:  # noqa: BLE001
-                continue
-            if decoded.get("indexM3") is not None or decoded.get("batteryV") is not None:
-                decoded["eventTime"] = event.get("time")
-                decoded["fCnt"] = event.get("fCnt")
-                decoded["fPort"] = event.get("fPort")
-                return decoded
-        return None
+            pass
+        return result
 
 
 def normalize_payload_to_hex(payload: str) -> str:
@@ -225,70 +145,3 @@ def normalize_payload_to_hex(payload: str) -> str:
         return binascii.hexlify(base64.b64decode(raw)).decode()
     except (binascii.Error, ValueError) as exc:
         raise ValueError("payload invalide (hex ou base64 attendu)") from exc
-
-
-def _build_telemetry(
-    dev_eui: str,
-    meter: dict[str, Any] | None,
-    readings: list[dict[str, Any]],
-    live: dict[str, Any] | None,
-    device: dict[str, Any],
-) -> dict[str, Any]:
-    latest = readings[0] if readings else None
-    out: dict[str, Any] = {
-        "devEui": dev_eui,
-        "name": (meter or {}).get("name") or device.get("name"),
-        "lastSeenAt": device.get("lastSeenAt"),
-        "applicationId": (meter or {}).get("application_id") or device.get("applicationId"),
-        "meterNumber": (meter or {}).get("meter_number"),
-        "indexM3": _first(
-            (meter or {}).get("last_index_m3"),
-            (latest or {}).get("index_m3"),
-            (live or {}).get("indexM3"),
-        ),
-        "indexLiters": _first(
-            (meter or {}).get("last_index_liters"),
-            (latest or {}).get("index_liters"),
-            (live or {}).get("indexLiters"),
-        ),
-        "batteryV": _first((meter or {}).get("battery_v"), (latest or {}).get("battery_v"), (live or {}).get("batteryV")),
-        "valveOpen": _first((meter or {}).get("valve_open"), (latest or {}).get("valve_open"), (live or {}).get("valveOpen")),
-        "valveFault": _first((meter or {}).get("valve_fault"), (live or {}).get("valveFault")),
-        "batteryLow": _first((meter or {}).get("battery_low"), (live or {}).get("batteryLow")),
-        "magneticAttack": _first((meter or {}).get("magnetic_attack"), (live or {}).get("magneticAttack")),
-        "lastReadingAt": (meter or {}).get("last_reading_at") or (latest or {}).get("time") or (live or {}).get("eventTime"),
-        "triggerLabel": (latest or {}).get("trigger_label") or (live or {}).get("triggerLabel"),
-        "recentReadings": readings[:5],
-    }
-    if out["valveOpen"] is True:
-        out["valveStatus"] = "ouverte"
-    elif out["valveOpen"] is False:
-        out["valveStatus"] = "fermée"
-    else:
-        out["valveStatus"] = "inconnu"
-    return out
-
-
-def _first(*values: Any) -> Any:
-    for value in values:
-        if value is not None:
-            return value
-    return None
-
-
-def _telemetry_has_values(telemetry: dict[str, Any]) -> bool:
-    return any(
-        telemetry.get(key) is not None
-        for key in ("indexM3", "batteryV", "valveOpen", "indexLiters", "pulseCount")
-    )
-
-
-def _pick_best_meter_dev_eui(meters: list[dict[str, Any]]) -> str:
-    for meter in meters:
-        if meter.get("last_index_m3") is not None or meter.get("battery_v") is not None:
-            dev_eui = (meter.get("dev_eui") or "").lower()
-            if dev_eui:
-                return dev_eui
-    if meters:
-        return (meters[0].get("dev_eui") or "").lower()
-    return ""
