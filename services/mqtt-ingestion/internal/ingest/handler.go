@@ -125,6 +125,12 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 
 	tenantID := h.resolveTenant(ctx, appID, gatewayID, msg.DeviceInfo.TenantID)
 
+	payloadHex, payloadSize, _ := NormalizePayloadData(msg.Data)
+	if payloadSize == 0 && msg.Data != "" {
+		payloadSize = len(msg.Data) / 2
+		payloadHex = msg.Data
+	}
+
 	row := UplinkRow{
 		Time:          ts,
 		TenantID:      tenantID,
@@ -137,7 +143,7 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 		FCnt:          msg.FCnt,
 		FPort:         msg.FPort,
 		Frequency:     msg.TxInfo.Frequency,
-		PayloadSize:   len(msg.Data) / 2,
+		PayloadSize:   payloadSize,
 		Region:        h.region,
 	}
 
@@ -147,7 +153,7 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 	}
 
 	if h.archiver != nil {
-		if err := h.archiver.ArchiveUplink(ctx, row, payload, msg.Data); err != nil {
+		if err := h.archiver.ArchiveUplink(ctx, row, payload, payloadHex); err != nil {
 			h.logger.Warn("payload archive failed", "error", err, "devEui", devEUI)
 		}
 	}

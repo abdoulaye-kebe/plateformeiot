@@ -22,8 +22,9 @@ const SUGGESTIONS = [
   "Donne-moi une vue d'ensemble du réseau",
   "Combien de gateways avons-nous ?",
   "Liste les devices",
+  "Liste les compteurs d'eau",
+  "Quel est l'index du compteur 8254812510001415 ?",
   "Ajoute un device",
-  "Ajoute une gateway",
   "Quels devices ont une batterie faible ?",
 ];
 

@@ -23,6 +23,9 @@ def format_tool_result(tool_name: str, raw: str, intent: str | None = None) -> s
         "list_devices": _format_list_devices,
         "list_applications": _format_list_applications,
         "find_low_battery_devices": _format_low_battery,
+        "list_water_meters": _format_list_water_meters,
+        "get_water_meter_telemetry": _format_water_meter_telemetry,
+        "get_water_meter_readings": _format_water_meter_readings,
         "create_gateway": _format_create_gateway,
         "create_device": _format_create_device,
         "get_device_radio_info": _format_device_radio,
@@ -108,9 +111,74 @@ def _format_low_battery(data: dict[str, Any]) -> str:
     items = data.get("lowBatteryDevices", [])
     if not items:
         return f"Aucun device batterie faible (scannés: {data.get('totalScanned', 0)})."
-    lines = ["Devices batterie faible :"]
+    lines = ["Devices / compteurs batterie faible :"]
     for d in items:
-        lines.append(f"  • {d.get('name', '?')} ({d.get('devEui')}) — {d.get('battery')}%")
+        if d.get("batteryV") is not None:
+            extra = f"{d.get('batteryV')} V"
+            if d.get("indexM3") is not None:
+                extra += f" — index {d.get('indexM3')} m³"
+        elif d.get("battery") is not None:
+            extra = f"{d.get('battery')}%"
+        else:
+            extra = "alarme batterie"
+        lines.append(f"  • {d.get('name', '?')} ({d.get('devEui')}) — {extra}")
+    return "\n".join(lines)
+
+
+def _format_list_water_meters(data: dict[str, Any]) -> str:
+    items = data.get("result", [])
+    if not items:
+        return "Aucun compteur d'eau enregistré (service Shengda)."
+    lines = [f"Compteurs d'eau ({data.get('totalCount', len(items))}) :"]
+    for meter in items[:20]:
+        valve = "ouverte" if meter.get("valve_open") else "fermée" if meter.get("valve_open") is False else "?"
+        index = meter.get("last_index_m3")
+        battery = meter.get("battery_v")
+        parts = []
+        if index is not None:
+            parts.append(f"{index} m³")
+        if battery is not None:
+            parts.append(f"{battery} V")
+        parts.append(f"vanne {valve}")
+        summary = " · ".join(parts)
+        lines.append(f"  • {meter.get('name') or meter.get('dev_eui')} — {summary}")
+    return "\n".join(lines)
+
+
+def _format_water_meter_telemetry(data: dict[str, Any]) -> str:
+    if data.get("error"):
+        return f"Erreur : {data['error']}"
+    lines = [
+        f"Compteur {data.get('name') or data.get('devEui')}",
+        f"- DevEUI          : {data.get('devEui')}",
+        f"- Index           : {data.get('indexM3', '—')} m³",
+        f"- Batterie        : {data.get('batteryV', '—')} V",
+        f"- Vanne           : {data.get('valveStatus', '—')}",
+        f"- Dernier relevé  : {data.get('lastReadingAt') or data.get('lastSeenAt') or '—'}",
+    ]
+    if data.get("batteryLow"):
+        lines.append("- Alerte          : batterie faible")
+    if data.get("magneticAttack"):
+        lines.append("- Alerte          : attaque magnétique")
+    if data.get("valveFault"):
+        lines.append("- Alerte          : défaut vanne")
+    if data.get("triggerLabel"):
+        lines.append(f"- Déclenchement   : {data.get('triggerLabel')}")
+    if data.get("source"):
+        lines.append(f"- Source données  : {data.get('source')}")
+    return "\n".join(lines)
+
+
+def _format_water_meter_readings(data: dict[str, Any]) -> str:
+    items = data.get("result", [])
+    if not items:
+        return "Aucun relevé enregistré pour ce compteur."
+    lines = [f"Relevés récents ({len(items)}) :"]
+    for row in items[:10]:
+        valve = "ouverte" if row.get("valve_open") else "fermée" if row.get("valve_open") is False else "?"
+        lines.append(
+            f"  • {row.get('time')} — {row.get('index_m3', '—')} m³ · {row.get('battery_v', '—')} V · vanne {valve}"
+        )
     return "\n".join(lines)
 
 

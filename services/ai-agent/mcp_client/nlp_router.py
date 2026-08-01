@@ -7,6 +7,7 @@ from typing import Any
 
 GATEWAY_WORDS = ("gateway", "gateways", "passerelle", "passerelles")
 DEVICE_WORDS = ("device", "devices", "appareil", "appareils", "capteur", "capteurs", "capteurs")
+METER_WORDS = ("compteur", "compteurs", "meter", "meters", "eau", "shengda")
 CREATE_WORDS = ("cré", "cre", "create", "ajout", "ajoute", "ajouter", "nouveau", "new", "add ")
 COUNT_WORDS = ("combien", "nombre", "how many", "count", "total", "nb ")
 
@@ -197,7 +198,7 @@ def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
         return "list_gateways", {"limit": 20}
 
     if _mentions(lower, DEVICE_WORDS) and any(
-        w in lower for w in ("liste", "list", "quel", "quels", "quelle", "quelles", "montre", "affiche", "voir", "nos ", "mes ")
+        w in lower for w in ("liste", "list", "montre", "affiche", "voir", "nos ", "mes ")
     ):
         return "list_devices", {"limit": 20}
     if "liste" in lower and _mentions(lower, DEVICE_WORDS):
@@ -207,8 +208,32 @@ def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
         return "list_applications", {"limit": 20}
     if ("profile" in lower or "profil" in lower) and ("liste" in lower or "list" in lower):
         return "list_device_profiles", {"limit": 20}
+
     if "batter" in lower:
         return "find_low_battery_devices", {"limit": 100}
+
+    m = re.search(
+        r"(?:index|mesure|mesures|t[ée]l[ée]m[ée]trie|relev[ée]|consommation|vanne|batterie).*(?:compteur|device|dev_eui|deveui)\s+([0-9a-fA-F]{16})",
+        lower,
+    )
+    if m:
+        return "get_water_meter_telemetry", {"dev_eui": m.group(1).lower()}
+
+    m = re.search(
+        r"(?:compteur|device|dev_eui|deveui)\s+([0-9a-fA-F]{16}).*(?:index|mesure|mesures|m3|m³|vanne|batterie|relev[ée])",
+        lower,
+    )
+    if m:
+        return "get_water_meter_telemetry", {"dev_eui": m.group(1).lower()}
+
+    m = re.search(r"(?:compteur|meter)\s+([0-9a-fA-F]{16})", lower)
+    if m and any(w in lower for w in ("index", "mesure", "vanne", "batterie", "m3", "m³", "état", "etat")):
+        return "get_water_meter_telemetry", {"dev_eui": m.group(1).lower()}
+
+    if _mentions(lower, METER_WORDS) and any(
+        w in lower for w in ("liste", "list", "montre", "affiche", "voir", "nos ", "mes ")
+    ):
+        return "list_water_meters", {"limit": 20}
 
     # Salutation seule → vue réseau
     if lower in ("bonjour", "salut", "hello", "hi", "coucou", "bjr"):

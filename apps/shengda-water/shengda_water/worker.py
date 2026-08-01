@@ -132,6 +132,17 @@ class DecodeBody(BaseModel):
     hex: str
 
 
+def _resolve_tenant_id(tenant_id: str | None, chirpstack_tenant_id: str | None) -> str:
+    if tenant_id:
+        return tenant_id
+    if chirpstack_tenant_id:
+        resolved = store.resolve_platform_tenant_by_chirpstack(chirpstack_tenant_id)
+        if resolved:
+            return resolved
+        raise HTTPException(status_code=404, detail="platform tenant not found for chirpstackTenantId")
+    raise HTTPException(status_code=422, detail="tenantId or chirpstackTenantId required")
+
+
 @app.get("/codec")
 async def get_codec() -> dict[str, Any]:
     codec_path = os.path.join(os.path.dirname(__file__), "..", "chirpstack", "shengda-v1.6.codec.js")
@@ -153,16 +164,23 @@ async def health() -> dict[str, str]:
 
 @app.get("/meters")
 async def list_meters(
-    tenantId: str = Query(...),
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
-    meters = store.list_meters(tenantId, limit)
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    meters = store.list_meters(tenant, limit)
     return {"result": meters, "totalCount": len(meters)}
 
 
 @app.get("/meters/{dev_eui}")
-async def get_meter(dev_eui: str, tenantId: str = Query(...)) -> dict[str, Any]:
-    meter = store.get_meter(tenantId, dev_eui)
+async def get_meter(
+    dev_eui: str,
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    meter = store.get_meter(tenant, dev_eui)
     if not meter:
         raise HTTPException(status_code=404, detail="meter not found")
     return meter
@@ -171,25 +189,35 @@ async def get_meter(dev_eui: str, tenantId: str = Query(...)) -> dict[str, Any]:
 @app.get("/meters/{dev_eui}/readings")
 async def get_readings(
     dev_eui: str,
-    tenantId: str = Query(...),
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ) -> dict[str, Any]:
-    readings = store.list_readings(tenantId, dev_eui, limit)
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    readings = store.list_readings(tenant, dev_eui, limit)
     return {"result": readings, "totalCount": len(readings)}
 
 
 @app.get("/meters/{dev_eui}/commands")
 async def get_commands(
     dev_eui: str,
-    tenantId: str = Query(...),
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
 ) -> dict[str, Any]:
-    commands = store.list_commands(tenantId, dev_eui, limit)
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    commands = store.list_commands(tenant, dev_eui, limit)
     return {"result": commands, "totalCount": len(commands)}
 
 
 @app.post("/meters/{dev_eui}/commands")
-async def send_command(dev_eui: str, body: ValveCommandBody, tenantId: str = Query(...)) -> dict[str, Any]:
+async def send_command(
+    dev_eui: str,
+    body: ValveCommandBody,
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
     action = body.action.lower().strip()
     if action == "read":
         cmd = read_meter_info_command()
@@ -200,7 +228,7 @@ async def send_command(dev_eui: str, body: ValveCommandBody, tenantId: str = Que
     else:
         raise HTTPException(status_code=400, detail="action must be open, close, dredge or read")
 
-    cmd_id = store.insert_command(tenantId, dev_eui, command_type, cmd["payloadHex"])
+    cmd_id = store.insert_command(tenant, dev_eui, command_type, cmd["payloadHex"])
 
     try:
         result = chirpstack.enqueue_downlink(

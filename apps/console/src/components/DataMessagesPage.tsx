@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiFetch, apiMutate } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
+import { formatDecodedPreview, normalizePayloadToHex, testDecodeUplink, unwrapDecodedData } from "@/lib/codecTest";
 import DataShell, { CopyIcon } from "@/components/DataShell";
 import { EmptyState, PageHeader, RoleBanner } from "@/components/ui";
 
@@ -19,6 +20,8 @@ type MessageRow = {
 };
 
 type AppRow = { id?: string; application?: { id?: string; name?: string } };
+type DecoderRow = { vendor?: string; script?: string; name?: string };
+type DecodedEntry = { data: Record<string, unknown>; preview: string } | { error: string };
 
 function toLocalInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -32,7 +35,8 @@ export default function DataMessagesPage() {
   const [loading, setLoading] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [decoded, setDecoded] = useState<Record<string, unknown> | null>(null);
+  const [decoderScript, setDecoderScript] = useState<string | null>(null);
+  const [decodedById, setDecodedById] = useState<Record<number, DecodedEntry>>({});
 
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
@@ -69,27 +73,48 @@ export default function DataMessagesPage() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      const list = await apiFetch<{ result?: DecoderRow[] }>("/api/v1/decoders");
+      const tenant =
+        list?.result?.find((d) => d.vendor === "shengda" && d.script) ??
+        list?.result?.find((d) => d.script);
+      if (tenant?.script) {
+        setDecoderScript(tenant.script);
+        return;
+      }
+      const tpl = await apiFetch<{ script?: string }>("/api/v1/decoders/template/shengda");
+      setDecoderScript(tpl?.script ?? null);
+    })();
+  }, []);
+
+  useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!decoderScript || messages.length === 0) {
+      setDecodedById({});
+      return;
+    }
+    const next: Record<number, DecodedEntry> = {};
+    for (const m of messages) {
+      if (!m.payloadHex) continue;
+      try {
+        const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);
+        next[m.id] = { data: raw, preview: formatDecodedPreview(raw) };
+      } catch (e) {
+        next[m.id] = { error: e instanceof Error ? e.message : "Décodage impossible" };
+      }
+    }
+    setDecodedById(next);
+  }, [messages, decoderScript]);
 
   const toggleFilter = (key: string) => {
     setActiveFilters((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   };
 
-  async function expandMessage(row: MessageRow) {
-    if (expanded === row.id) {
-      setExpanded(null);
-      setDecoded(null);
-      return;
-    }
-    setExpanded(row.id);
-    setDecoded(null);
-    if (row.payloadHex) {
-      const { data } = await apiMutate<Record<string, unknown>>("/api/v1/shengda/decode", "POST", {
-        hex: row.payloadHex,
-      });
-      setDecoded(data);
-    }
+  function expandMessage(row: MessageRow) {
+    setExpanded((prev) => (prev === row.id ? null : row.id));
   }
 
   function exportCsv() {
@@ -256,10 +281,29 @@ export default function DataMessagesPage() {
                         {m.fPort != null && <div>fPort {m.fPort}</div>}
                       </td>
                       <td className="max-w-md px-3 py-2">
-                        {expanded === m.id && decoded ? (
-                          <pre className="max-h-32 overflow-auto rounded bg-gray-900 p-2 text-[10px] text-emerald-300">
-                            {JSON.stringify(decoded, null, 2)}
+                        {expanded === m.id && decodedById[m.id] && "data" in decodedById[m.id] ? (
+                          <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-[10px] text-emerald-300">
+                            {JSON.stringify(unwrapDecodedData(decodedById[m.id].data), null, 2)}
                           </pre>
+                        ) : decodedById[m.id] && "preview" in decodedById[m.id] ? (
+                          <div>
+                            <div className="text-xs text-gray-800">{decodedById[m.id].preview}</div>
+                            {showDetails && m.payloadHex && (() => {
+                              try {
+                                const hex = normalizePayloadToHex(m.payloadHex);
+                                return (
+                                  <code className="mt-0.5 block truncate font-mono text-[10px] text-gray-400">
+                                    hex {hex.slice(0, 32)}
+                                    {hex.length > 32 ? "…" : ""}
+                                  </code>
+                                );
+                              } catch {
+                                return null;
+                              }
+                            })()}
+                          </div>
+                        ) : decodedById[m.id] && "error" in decodedById[m.id] ? (
+                          <span className="text-xs text-amber-700">{decodedById[m.id].error}</span>
                         ) : (
                           <code className="block truncate font-mono text-[10px] text-gray-600">
                             {m.payloadHex ? `{ hex: "${m.payloadHex.slice(0, 40)}${m.payloadHex.length > 40 ? "…" : ""}" }` : "—"}

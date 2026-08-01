@@ -236,10 +236,12 @@ services:
     depends_on:
       - platform-api
       - chirpstack-rest-api
+      - shengda-water
     environment:
       CHIRPSTACK_REST_URL: http://chirpstack-rest-api:8090
       CHIRPSTACK_API_TOKEN: ${CHIRPSTACK_API_TOKEN:-}
       CHIRPSTACK_TENANT_ID: ${CHIRPSTACK_TENANT_ID:-}
+      SHENGDA_WATER_URL: http://shengda-water:8098
       CHIRPSTACK_DEFAULT_APPLICATION_ID: ${CHIRPSTACK_DEFAULT_APPLICATION_ID:-bc0328f2-e02f-4ef0-b214-375a6fb13ccb}
       CHIRPSTACK_DEFAULT_DEVICE_PROFILE_ID: ${CHIRPSTACK_DEFAULT_DEVICE_PROFILE_ID:-50c8b1f7-fac6-4d6e-a595-7d82963748c7}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

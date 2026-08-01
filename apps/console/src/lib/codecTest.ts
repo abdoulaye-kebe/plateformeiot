@@ -11,8 +11,25 @@ function mkBytes(arr: number[]) {
   return o;
 }
 
+/** ChirpStack envoie le payload en base64 ; l'archive peut contenir l'un ou l'autre format. */
+export function normalizePayloadToHex(input: string): string {
+  const s = input.replace(/\s/g, "");
+  if (!s) throw new Error("Payload vide");
+  if (/^[0-9a-fA-F]+$/.test(s) && s.length % 2 === 0) return s.toLowerCase();
+  try {
+    const bin = atob(s);
+    let hex = "";
+    for (let i = 0; i < bin.length; i++) {
+      hex += bin.charCodeAt(i).toString(16).padStart(2, "0");
+    }
+    return hex;
+  } catch {
+    throw new Error("Payload invalide (attendu hex ou base64 ChirpStack)");
+  }
+}
+
 export function testDecodeUplink(script: string, hexPayload: string, fPort: number): Record<string, unknown> {
-  const hex = hexPayload.replace(/\s/g, "");
+  const hex = normalizePayloadToHex(hexPayload);
   if (!hex || hex.length % 2 !== 0) {
     throw new Error("Payload hex invalide");
   }
@@ -47,4 +64,26 @@ var __testBytes = __mkBytes([${arr.join(",")}]);
     throw new Error("decodeUplink doit retourner un objet");
   }
   return result as Record<string, unknown>;
+}
+
+export function unwrapDecodedData(result: Record<string, unknown>): Record<string, unknown> {
+  const inner = result.data;
+  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+    return inner as Record<string, unknown>;
+  }
+  return result;
+}
+
+/** Résumé court pour la colonne Data (compteurs Shengda et autres). */
+export function formatDecodedPreview(result: Record<string, unknown>): string {
+  const data = unwrapDecodedData(result);
+  const parts: string[] = [];
+  if (data.indexM3 != null) parts.push(`${data.indexM3} m³`);
+  if (data.valveOpen != null) parts.push(data.valveOpen ? "vanne ouverte" : "vanne fermée");
+  if (data.batteryV != null) parts.push(`${data.batteryV} V`);
+  if (data.pulseCount != null && data.indexM3 == null) parts.push(`pulses ${data.pulseCount}`);
+  if (parts.length) return parts.join(" · ");
+  if (data.vendor) return String(data.vendor);
+  const compact = JSON.stringify(data);
+  return compact.length > 72 ? `${compact.slice(0, 69)}…` : compact;
 }

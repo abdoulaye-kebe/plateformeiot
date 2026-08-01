@@ -133,6 +133,20 @@ class ShengdaStore:
                 )
             conn.commit()
 
+    def resolve_platform_tenant_by_chirpstack(self, chirpstack_tenant_id: str) -> str | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id::text FROM tenants
+                    WHERE chirpstack_tenant_id = %s::uuid AND status = 'active'
+                    LIMIT 1
+                    """,
+                    (chirpstack_tenant_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+
     def list_meters(self, tenant_id: str, limit: int = 100) -> list[dict[str, Any]]:
         with psycopg.connect(self.database_url) as conn:
             with conn.cursor() as cur:

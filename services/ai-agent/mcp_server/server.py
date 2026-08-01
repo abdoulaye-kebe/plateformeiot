@@ -10,18 +10,21 @@ from fastmcp import FastMCP
 
 from mcp_server.chirpstack_client import ChirpStackClient
 from mcp_server.radio import parse_radio_from_events, summarize_link_metrics
+from mcp_server.shengda_client import ShengdaClient
 from mcp_server.tenant_context import chirpstack_tenant_id
 
 mcp = FastMCP(
     name="lorawan-platform",
     instructions=(
         "Serveur MCP pour la plateforme IoT LoRaWAN (ChirpStack). "
-        "Outils de lecture, écriture (CRUD), métriques radio (RSSI, SNR, SF/DR) et diagnostics. "
+        "Outils de lecture, écriture (CRUD), métriques radio (RSSI, SNR, SF/DR), diagnostics "
+        "et télémétrie compteurs d'eau Shengda (index m³, batterie, vanne). "
         "Pour delete_gateway et delete_device, confirm=true est obligatoire."
     ),
 )
 
 cs = ChirpStackClient()
+shengda = ShengdaClient(chirpstack=cs)
 
 
 def _parse_last_seen(value: Any) -> datetime | None:
@@ -343,21 +346,58 @@ async def diagnose_gateway(gateway_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 async def find_low_battery_devices(limit: int = 100) -> dict[str, Any]:
-    """Devices avec batterie faible (tag battery_pct < 20)."""
+    """Devices avec batterie faible (tags ChirpStack ou relevés compteurs Shengda)."""
     devices = await cs.list_devices(limit=min(limit, 200))
     low_battery: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
     for item in devices.get("result", []):
         device = item.get("device", item)
+        dev_eui = (device.get("devEui") or "").lower()
         tags = device.get("tags") or {}
         battery = tags.get("battery") or tags.get("battery_pct") or tags.get("batteryPercent")
         if battery is not None:
             try:
                 level = float(battery)
                 if level < 20:
-                    low_battery.append({"devEui": device.get("devEui"), "battery": level, "name": device.get("name")})
+                    low_battery.append(
+                        {
+                            "devEui": dev_eui,
+                            "name": device.get("name"),
+                            "battery": level,
+                            "source": "chirpstack-tag",
+                            "lastSeenAt": device.get("lastSeenAt"),
+                        }
+                    )
+                    seen.add(dev_eui)
             except (TypeError, ValueError):
                 continue
-    return {"totalScanned": len(devices.get("result", [])), "lowBatteryDevices": low_battery}
+
+    try:
+        meters = await shengda.find_low_battery_meters(limit=limit)
+        for meter in meters.get("lowBatteryMeters", []):
+            dev_eui = (meter.get("dev_eui") or "").lower()
+            if dev_eui in seen:
+                continue
+            low_battery.append(
+                {
+                    "devEui": dev_eui,
+                    "name": meter.get("name"),
+                    "batteryV": meter.get("battery_v"),
+                    "batteryLow": meter.get("battery_low"),
+                    "indexM3": meter.get("last_index_m3"),
+                    "source": "shengda-meter",
+                    "lastReadingAt": meter.get("last_reading_at"),
+                }
+            )
+            seen.add(dev_eui)
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "totalScanned": len(devices.get("result", [])),
+        "lowBatteryDevices": low_battery,
+    }
 
 
 @mcp.tool()
@@ -387,6 +427,33 @@ async def network_overview() -> dict[str, Any]:
         "offlineDevices": offline_devices,
         "offlineGateways": offline_gateways,
     }
+
+
+# ── Compteurs d'eau Shengda ───────────────────────────────────────────────────
+
+
+@mcp.tool()
+async def list_water_meters(limit: int = 50) -> dict[str, Any]:
+    """Liste les compteurs d'eau Shengda avec dernier index m³, batterie et état vanne."""
+    return await shengda.list_meters(limit=min(limit, 200))
+
+
+@mcp.tool()
+async def get_water_meter_telemetry(dev_eui: str, readings_limit: int = 5) -> dict[str, Any]:
+    """Mesures actuelles d'un compteur d'eau : index m³, batterie (V), vanne, alarmes et historique récent."""
+    return await shengda.get_meter_telemetry(dev_eui, readings_limit=min(readings_limit, 20))
+
+
+@mcp.tool()
+async def get_water_meter_readings(dev_eui: str, limit: int = 20) -> dict[str, Any]:
+    """Historique des relevés décodés d'un compteur d'eau (index, batterie, vanne par uplink)."""
+    return await shengda.list_readings(dev_eui.strip().lower(), limit=min(limit, 50))
+
+
+@mcp.tool()
+async def decode_water_meter_payload(payload: str) -> dict[str, Any]:
+    """Décode une trame Shengda (hex ou base64 ChirpStack) en index m³, batterie, vanne."""
+    return await shengda.decode_payload(payload)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -424,7 +491,7 @@ def platform_config() -> dict[str, str]:
         "chirpstackRestUrl": cs.base_url,
         "tenantId": cs.tenant_id or "(non configuré)",
         "mcpVersion": "0.2.0",
-        "tools": "read, write, metrics, diagnostics, integrations",
+        "tools": "read, write, metrics, diagnostics, water-meters, integrations",
         "sseEndpoint": f"http://{os.getenv('MCP_PUBLIC_HOST', 'localhost')}:{os.getenv('MCP_PORT', '8095')}/sse",
     }
 
