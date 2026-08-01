@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatDecodedPreview, normalizePayloadToHex, testDecodeUplink, unwrapDecodedData } from "@/lib/codecTest";
+import { decodeShengdaPayload } from "@/lib/shengdaDecode";
 import DataShell, { CopyIcon } from "@/components/DataShell";
 import { EmptyState, PageHeader, RoleBanner } from "@/components/ui";
 
@@ -105,24 +106,22 @@ export default function DataMessagesPage() {
           data: { data: m.decoded },
           preview: m.decodePreview || formatDecodedPreview({ data: m.decoded }),
         };
+        continue;
       }
-    }
-    const withPayload = messages.filter((m) => m.payloadHex);
-    if (withPayload.length > 0 && withPayload.every((m) => next[m.id])) {
-      setDecodedById(next);
-      return;
-    }
-    if (!decoderScript) {
-      setDecodedById(next);
-      return;
-    }
-    for (const m of messages) {
-      if (next[m.id]) continue;
       if (!m.payloadHex) continue;
       try {
-        const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);
-        next[m.id] = { data: raw, preview: formatDecodedPreview(raw) };
+        const data = decodeShengdaPayload(m.payloadHex);
+        next[m.id] = { data: { data }, preview: formatDecodedPreview({ data }) };
       } catch (e) {
+        if (decoderScript) {
+          try {
+            const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);
+            next[m.id] = { data: raw, preview: formatDecodedPreview(raw) };
+            continue;
+          } catch {
+            /* fallback JS codec */
+          }
+        }
         next[m.id] = { error: e instanceof Error ? e.message : "Décodage impossible" };
       }
     }

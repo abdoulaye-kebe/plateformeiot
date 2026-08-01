@@ -97,6 +97,8 @@ services:
         condition: service_started
       keycloak:
         condition: service_started
+      shengda-water:
+        condition: service_started
     environment:
       PLATFORM_ADDR: ":8081"
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
