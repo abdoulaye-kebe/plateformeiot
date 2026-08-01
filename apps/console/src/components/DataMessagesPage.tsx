@@ -26,6 +26,24 @@ type AppRow = { id?: string; application?: { id?: string; name?: string } };
 type DecoderRow = { vendor?: string; script?: string; name?: string };
 type DecodedEntry = { data: Record<string, unknown>; preview: string } | { error: string };
 
+function messagePreview(m: MessageRow): { preview: string; data?: Record<string, unknown>; error?: string } {
+  if (m.decodePreview) {
+    return { preview: m.decodePreview, data: m.decoded };
+  }
+  if (m.decoded && Object.keys(m.decoded).length > 0) {
+    return { preview: formatDecodedPreview({ data: m.decoded }), data: m.decoded };
+  }
+  if (!m.payloadHex) {
+    return { preview: "—" };
+  }
+  try {
+    const data = decodeShengdaPayload(m.payloadHex);
+    return { preview: formatDecodedPreview({ data }), data };
+  } catch (e) {
+    return { preview: "Payload brut", error: e instanceof Error ? e.message : "Décodage impossible" };
+  }
+}
+
 function decodeMessageRow(m: MessageRow): DecodedEntry | undefined {
   if (m.decoded && Object.keys(m.decoded).length > 0) {
     return {
@@ -279,7 +297,11 @@ export default function DataMessagesPage() {
               </thead>
               <tbody>
                 {messages.map((m) => {
+                  const row = messagePreview(m);
                   const decoded = decodedById[m.id] ?? decodeMessageRow(m);
+                  const preview = decoded && "preview" in decoded ? decoded.preview : row.preview;
+                  const detail = decoded && "data" in decoded ? decoded.data : row.data ? { data: row.data } : undefined;
+                  const error = decoded && "error" in decoded ? decoded.error : row.error;
                   return (
                     <tr key={m.id} className="border-b border-gray-100 align-top hover:bg-gray-50/80">
                       <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">
@@ -301,13 +323,15 @@ export default function DataMessagesPage() {
                         {m.fPort != null && <div>fPort {m.fPort}</div>}
                       </td>
                       <td className="max-w-md px-3 py-2">
-                        {expanded === m.id && decoded && "data" in decoded ? (
+                        {expanded === m.id && detail ? (
                           <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-[10px] text-emerald-300">
-                            {JSON.stringify(unwrapDecodedData(decoded.data), null, 2)}
+                            {JSON.stringify(unwrapDecodedData(detail), null, 2)}
                           </pre>
-                        ) : decoded && "preview" in decoded ? (
+                        ) : error ? (
+                          <span className="text-xs text-amber-700">{error}</span>
+                        ) : preview && preview !== "—" ? (
                           <div>
-                            <div className="text-xs text-gray-800">{decoded.preview}</div>
+                            <div className="text-xs font-medium text-gray-900">{preview}</div>
                             {showDetails && m.payloadHex && (() => {
                               try {
                                 const hex = normalizePayloadToHex(m.payloadHex);
@@ -322,12 +346,8 @@ export default function DataMessagesPage() {
                               }
                             })()}
                           </div>
-                        ) : decoded && "error" in decoded ? (
-                          <span className="text-xs text-amber-700">{decoded.error}</span>
                         ) : (
-                          <code className="block truncate font-mono text-[10px] text-gray-600">
-                            {m.payloadHex ? `{ hex: "${m.payloadHex.slice(0, 40)}${m.payloadHex.length > 40 ? "…" : ""}" }` : "—"}
-                          </code>
+                          <span className="text-xs text-gray-500">—</span>
                         )}
                       </td>
                       {showDetails && (

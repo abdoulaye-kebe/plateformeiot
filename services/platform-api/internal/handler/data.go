@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -45,7 +46,14 @@ func (d Deps) listDataMessages(w http.ResponseWriter, r *http.Request) {
 	rows := make([]dataMessageRow, 0, len(records))
 	for _, rec := range records {
 		row := dataMessageRow{PayloadRecord: rec}
-		if rec.PayloadHex != "" {
+		if len(rec.DecodedJSON) > 0 {
+			var decoded map[string]any
+			if err := json.Unmarshal(rec.DecodedJSON, &decoded); err == nil && len(decoded) > 0 {
+				row.Decoded = decoded
+				row.DecodePreview = formatDecodePreview(decoded)
+			}
+		}
+		if row.Decoded == nil && rec.PayloadHex != "" {
 			if decoded, err := d.decodeShengdaPayload(r.Context(), rec.PayloadHex); err == nil {
 				row.Decoded = decoded
 				row.DecodePreview = formatDecodePreview(decoded)

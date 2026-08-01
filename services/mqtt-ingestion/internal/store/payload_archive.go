@@ -19,6 +19,7 @@ type PayloadArchiveRow struct {
 	PayloadSize   int
 	FPort         int
 	FCnt          int64
+	DecodedJSON   []byte
 }
 
 type PayloadArchiveStore struct{ pool *pgxpool.Pool }
@@ -29,9 +30,16 @@ func NewPayloadArchiveStore(pool *pgxpool.Pool) *PayloadArchiveStore {
 
 func (s *PayloadArchiveStore) Insert(ctx context.Context, row PayloadArchiveRow) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO payload_archives (time, tenant_id, dev_eui, application_id, gateway_id, object_key, payload_hex, payload_size, f_port, f_cnt)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		INSERT INTO payload_archives (time, tenant_id, dev_eui, application_id, gateway_id, object_key, payload_hex, payload_size, f_port, f_cnt, decoded_json)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 	`, row.Time, nullableUUID(row.TenantID), row.DevEUI, row.ApplicationID, row.GatewayID,
-		row.ObjectKey, row.PayloadHex, row.PayloadSize, row.FPort, row.FCnt)
+		row.ObjectKey, row.PayloadHex, row.PayloadSize, row.FPort, row.FCnt, nullableJSON(row.DecodedJSON))
 	return err
+}
+
+func nullableJSON(raw []byte) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	return raw
 }

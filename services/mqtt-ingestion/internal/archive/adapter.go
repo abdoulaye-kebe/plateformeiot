@@ -16,7 +16,7 @@ func NewMinioPayloadArchiver(minio *Archiver, db *store.PayloadArchiveStore) *Mi
 	return &MinioPayloadArchiver{minio: minio, db: db}
 }
 
-func (a *MinioPayloadArchiver) ArchiveUplink(ctx context.Context, row ingest.UplinkRow, rawPayload []byte, payloadHex string) error {
+func (a *MinioPayloadArchiver) ArchiveUplink(ctx context.Context, row ingest.UplinkRow, rawPayload []byte, payloadHex string, decodedObject []byte) error {
 	result, err := a.minio.Store(ctx, ArchiveInput{
 		Time:          row.Time,
 		TenantID:      row.TenantID,
@@ -43,5 +43,6 @@ func (a *MinioPayloadArchiver) ArchiveUplink(ctx context.Context, row ingest.Upl
 		PayloadSize:   row.PayloadSize,
 		FPort:         row.FPort,
 		FCnt:          row.FCnt,
+		DecodedJSON:   decodedObject,
 	})
 }

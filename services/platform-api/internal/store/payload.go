@@ -11,16 +11,17 @@ import (
 )
 
 type PayloadRecord struct {
-	ID            int64     `json:"id"`
-	Time          time.Time `json:"time"`
-	DevEUI        string    `json:"devEui"`
-	ApplicationID string    `json:"applicationId,omitempty"`
-	GatewayID     string    `json:"gatewayId,omitempty"`
-	ObjectKey     string    `json:"objectKey"`
-	PayloadHex    string    `json:"payloadHex,omitempty"`
-	PayloadSize   int       `json:"payloadSize"`
-	FPort         *int      `json:"fPort,omitempty"`
-	FCnt          *int64    `json:"fCnt,omitempty"`
+	ID            int64          `json:"id"`
+	Time          time.Time      `json:"time"`
+	DevEUI        string         `json:"devEui"`
+	ApplicationID string         `json:"applicationId,omitempty"`
+	GatewayID     string         `json:"gatewayId,omitempty"`
+	ObjectKey     string         `json:"objectKey"`
+	PayloadHex    string         `json:"payloadHex,omitempty"`
+	PayloadSize   int            `json:"payloadSize"`
+	FPort         *int           `json:"fPort,omitempty"`
+	FCnt          *int64         `json:"fCnt,omitempty"`
+	DecodedJSON   []byte         `json:"-"`
 }
 
 type PayloadStore struct{ pool *pgxpool.Pool }
@@ -33,7 +34,7 @@ func (s *PayloadStore) ListByDevice(ctx context.Context, tenantID *uuid.UUID, de
 	}
 	query := `
 		SELECT id, time, dev_eui, COALESCE(application_id, ''), COALESCE(gateway_id, ''),
-		       object_key, COALESCE(payload_hex, ''), payload_size, f_port, f_cnt
+		       object_key, COALESCE(payload_hex, ''), payload_size, f_port, f_cnt, decoded_json
 		FROM payload_archives
 		WHERE dev_eui = $1`
 	args := []any{devEUI}
@@ -54,7 +55,7 @@ func (s *PayloadStore) ListByDevice(ctx context.Context, tenantID *uuid.UUID, de
 	for rows.Next() {
 		var p PayloadRecord
 		if err := rows.Scan(&p.ID, &p.Time, &p.DevEUI, &p.ApplicationID, &p.GatewayID,
-			&p.ObjectKey, &p.PayloadHex, &p.PayloadSize, &p.FPort, &p.FCnt); err != nil {
+			&p.ObjectKey, &p.PayloadHex, &p.PayloadSize, &p.FPort, &p.FCnt, &p.DecodedJSON); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -105,7 +106,7 @@ func (s *PayloadStore) ListMessages(ctx context.Context, tenantID *uuid.UUID, f 
 
 	query := `
 		SELECT id, time, dev_eui, COALESCE(application_id, ''), COALESCE(gateway_id, ''),
-		       object_key, COALESCE(payload_hex, ''), payload_size, f_port, f_cnt
+		       object_key, COALESCE(payload_hex, ''), payload_size, f_port, f_cnt, decoded_json
 		FROM payload_archives
 		WHERE 1=1`
 	args := []any{}
@@ -160,7 +161,7 @@ func (s *PayloadStore) ListMessages(ctx context.Context, tenantID *uuid.UUID, f 
 	for rows.Next() {
 		var p PayloadRecord
 		if err := rows.Scan(&p.ID, &p.Time, &p.DevEUI, &p.ApplicationID, &p.GatewayID,
-			&p.ObjectKey, &p.PayloadHex, &p.PayloadSize, &p.FPort, &p.FCnt); err != nil {
+			&p.ObjectKey, &p.PayloadHex, &p.PayloadSize, &p.FPort, &p.FCnt, &p.DecodedJSON); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

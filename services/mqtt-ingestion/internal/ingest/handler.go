@@ -30,7 +30,7 @@ type EventPublisher interface {
 }
 
 type PayloadArchiver interface {
-	ArchiveUplink(ctx context.Context, row UplinkRow, rawPayload []byte, payloadHex string) error
+	ArchiveUplink(ctx context.Context, row UplinkRow, rawPayload []byte, payloadHex string, decodedObject []byte) error
 }
 
 type Handler struct {
@@ -153,7 +153,11 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 	}
 
 	if h.archiver != nil {
-		if err := h.archiver.ArchiveUplink(ctx, row, payload, payloadHex); err != nil {
+		var decodedObject []byte
+		if len(msg.Object) > 0 {
+			decodedObject = msg.Object
+		}
+		if err := h.archiver.ArchiveUplink(ctx, row, payload, payloadHex, decodedObject); err != nil {
 			h.logger.Warn("payload archive failed", "error", err, "devEui", devEUI)
 		}
 	}
@@ -208,11 +212,12 @@ func (h *Handler) handleGatewayStats(ctx context.Context, payload []byte) {
 }
 
 type uplinkMessage struct {
-	Time       string `json:"time"`
-	DR         int    `json:"dr"`
-	FCnt       int64  `json:"fCnt"`
-	FPort      int    `json:"fPort"`
-	Data       string `json:"data"`
+	Time       string          `json:"time"`
+	DR         int             `json:"dr"`
+	FCnt       int64           `json:"fCnt"`
+	FPort      int             `json:"fPort"`
+	Data       string          `json:"data"`
+	Object     json.RawMessage `json:"object"`
 	DeviceInfo struct {
 		DevEUI        string `json:"devEui"`
 		ApplicationID string `json:"applicationId"`
