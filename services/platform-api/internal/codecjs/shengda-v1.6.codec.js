@@ -17,11 +17,38 @@ var TYPE_LENGTHS = {
 
 var PULSE_LITERS = { 0x01: 1, 0x02: 10, 0x03: 100, 0x04: 1000 };
 
-var METER_TYPES = { 0x00: "water", 0x01: "gas", 0x02: "heat", 0x03: "electricity" };
+var METER_TYPES = {
+  0x00: "water", 0x01: "gas", 0x02: "heat", 0x03: "electricity", 0x04: "gas_sensor",
+};
+
+var METERING_MODES = {
+  0x00: "dual_reed", 0x01: "single_reed", 0x02: "dual_hall", 0x03: "direct_reading",
+  0x04: "non_magnetic_inductive", 0x05: "non_magnetic_coil", 0x06: "triple_hall",
+  0x07: "single_hall", 0x08: "edc_u_pulse", 0x09: "iuw_pulse", 0x0a: "edc_b1_pulse",
+  0x0b: "edc_b2_pulse", 0x0c: "iuw_nfc_pulse", 0x0d: "adc_acquisition",
+  0x0e: "near_camera", 0x0f: "remote_camera",
+};
+
+var VALVE_TYPES = {
+  0x00: "two_wire", 0x01: "five_wire", 0x02: "no_valve", 0x03: "angle_valve", 0x04: "four_wire",
+};
+
+var LORAWAN_CLASSES = {
+  0x00: "class_a", 0x01: "class_b", 0x02: "class_c", 0x03: "dual_mode",
+};
+
+var METER_STATUS = {
+  0: "normal", 1: "empty_pipe", 2: "flow_overload", 4: "storage_fault",
+  5: "transducer_fault", 6: "wrong_direction",
+};
 
 var TRIGGER_LABELS = {
   0x00: "magnetic", 0x01: "routine", 0x02: "magnetic_attack", 0x03: "valve_control",
-  0x04: "platform_read", 0x0a: "dredge_valve", 0x0e: "timing_interval", 0x13: "abnormal_alarm",
+  0x04: "platform_read", 0x05: "platform_version_read", 0x06: "platform_param_set",
+  0x07: "monthly_frozen", 0x08: "yearly_frozen", 0x09: "network_join", 0x0a: "dredge_valve",
+  0x0b: "network_param_change", 0x0c: "valve_type_freq_change", 0x0d: "upgrade_command",
+  0x0e: "timing_interval", 0x0f: "non_magnetic_alarm", 0x10: "dense_sampling",
+  0x11: "q3_valve", 0x12: "lorawan_start", 0x13: "abnormal_alarm", 0xff: "param_error",
 };
 
 function u32be(bytes, offset, len) {
@@ -89,7 +116,18 @@ function applyFields(items) {
     out.meterType = items[0x1b][0];
     out.meterTypeLabel = METER_TYPES[out.meterType] || "unknown";
   }
-  if (items[0x12]) out.meteringMode = items[0x12][0];
+  if (items[0x12]) {
+    out.meteringMode = items[0x12][0];
+    out.meteringModeLabel = METERING_MODES[out.meteringMode] || "unknown";
+  }
+  if (items[0x09]) {
+    out.lorawanClass = items[0x09][0];
+    out.lorawanClassLabel = LORAWAN_CLASSES[out.lorawanClass] || "unknown";
+  }
+  if (items[0x17]) {
+    out.valveType = items[0x17][0];
+    out.valveTypeLabel = VALVE_TYPES[out.valveType] || "unknown";
+  }
   if (items[0x0b]) out.pulseCount = u32be(items[0x0b], 0, items[0x0b].length);
   if (items[0x14]) {
     out.pulseConstant = items[0x14][0];
@@ -107,7 +145,16 @@ function applyFields(items) {
     out.valveFault = !!(sw1 & 0x80);
     out.batteryLow = !!(sw1 & 0x40);
     out.magneticAttack = !!(sw1 & 0x20);
+    out.batteryRemoved = !!(sw1 & 0x10);
     out.valveOpen = !(sw1 & 0x04);
+    out.meteringFault = !!(sw1 & 0x02);
+    out.remoteFlag = !!(sw1 & 0x01);
+    out.waterInletAlarm = !!(sw2 & 0x80);
+    out.waterReturnAlarm = !!(sw2 & 0x40);
+    out.flowAlarm = !!(sw2 & 0x20);
+    out.meterStatus = (sw2 >> 2) & 0x07;
+    out.meterStatusLabel = METER_STATUS[out.meterStatus] || "unknown";
+    out.historicalMagneticAttack = !!(sw2 & 0x02);
   }
   if (items[0x23]) {
     out.triggerSource = items[0x23][0];

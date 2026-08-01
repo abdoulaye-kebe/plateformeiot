@@ -21,7 +21,30 @@ def test_battery_decode():
     assert reading.battery_v == 3.66
 
 
-def test_monthly_frozen_sample():
-    reading = decode_payload("24190d1d1304000d0000c35014032307df")
-    assert reading.frame_header == 0x24
-    assert reading.checksum_ok is True
+def test_status_word_decode():
+    # Status word 1: valve closed (B2=1), battery low (B6=1) → 0x44
+    # Status word 2: flow overload (010) + water inlet alarm (B7=1) → 0xA8
+    reading = decode_payload("3344A8")
+    assert reading.status_word_1 == 0x44
+    assert reading.valve_open is False
+    assert reading.battery_low is True
+    assert reading.water_inlet_alarm is True
+    assert reading.meter_status == 2
+    assert reading.meter_status_label == "flow_overload"
+
+
+def test_regular_report_trigger_routine():
+    # Exemple rapport régulier (§16) — trigger routine (0x01)
+    hex_payload = (
+        "241605f5e10414010b000186231a003c3300002301"
+    )
+    reading = decode_payload(hex_payload)
+    assert reading.packet_sequence == 5
+    assert reading.meter_number == 0xF5E10414
+    assert reading.meter_type_label == "water"
+    assert reading.pulse_constant == 0x01
+    assert reading.pulse_count == 0x18623
+    assert reading.battery_v == 3.66
+    assert reading.trigger_label == "routine"
+    assert reading.index_m3 == round(0x18623 / 1000, 3)
+

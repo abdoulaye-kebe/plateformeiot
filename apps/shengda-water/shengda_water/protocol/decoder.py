@@ -9,10 +9,14 @@ from typing import Any
 
 from shengda_water.protocol.constants import (
     FRAME_HEADER_UPLINK,
+    LORAWAN_CLASS_LABELS,
+    METERING_MODE_LABELS,
+    METER_STATUS_LABELS,
     METER_TYPE_LABELS,
     PULSE_LITERS,
     TRIGGER_LABELS,
     TYPE_LENGTHS,
+    VALVE_TYPE_LABELS,
 )
 
 
@@ -37,6 +41,20 @@ class ShengdaReading:
     valve_fault: bool | None = None
     battery_low: bool | None = None
     magnetic_attack: bool | None = None
+    battery_removed: bool | None = None
+    metering_fault: bool | None = None
+    remote_flag: bool | None = None
+    water_inlet_alarm: bool | None = None
+    water_return_alarm: bool | None = None
+    flow_alarm: bool | None = None
+    meter_status: int | None = None
+    meter_status_label: str | None = None
+    historical_magnetic_attack: bool | None = None
+    valve_type: int | None = None
+    valve_type_label: str | None = None
+    lorawan_class: int | None = None
+    lorawan_class_label: str | None = None
+    metering_mode_label: str | None = None
     trigger_source: int | None = None
     trigger_label: str | None = None
     items: dict[int, bytes] = field(default_factory=dict)
@@ -64,6 +82,20 @@ class ShengdaReading:
             "valveFault": self.valve_fault,
             "batteryLow": self.battery_low,
             "magneticAttack": self.magnetic_attack,
+            "batteryRemoved": self.battery_removed,
+            "meteringFault": self.metering_fault,
+            "remoteFlag": self.remote_flag,
+            "waterInletAlarm": self.water_inlet_alarm,
+            "waterReturnAlarm": self.water_return_alarm,
+            "flowAlarm": self.flow_alarm,
+            "meterStatus": self.meter_status,
+            "meterStatusLabel": self.meter_status_label,
+            "historicalMagneticAttack": self.historical_magnetic_attack,
+            "valveType": self.valve_type,
+            "valveTypeLabel": self.valve_type_label,
+            "lorawanClass": self.lorawan_class,
+            "lorawanClassLabel": self.lorawan_class_label,
+            "meteringModeLabel": self.metering_mode_label,
             "triggerSource": self.trigger_source,
             "triggerLabel": self.trigger_label,
             "checksumOk": self.checksum_ok,
@@ -166,6 +198,13 @@ def _apply_known_fields(reading: ShengdaReading, items: dict[int, bytes]) -> Non
         reading.meter_type_label = METER_TYPE_LABELS.get(reading.meter_type, "unknown")
     if 0x12 in items:
         reading.metering_mode = items[0x12][0]
+        reading.metering_mode_label = METERING_MODE_LABELS.get(reading.metering_mode, "unknown")
+    if 0x09 in items:
+        reading.lorawan_class = items[0x09][0]
+        reading.lorawan_class_label = LORAWAN_CLASS_LABELS.get(reading.lorawan_class, "unknown")
+    if 0x17 in items:
+        reading.valve_type = items[0x17][0]
+        reading.valve_type_label = VALVE_TYPE_LABELS.get(reading.valve_type, "unknown")
     if 0x0B in items:
         reading.pulse_count = _u32_be(items[0x0B])
     if 0x14 in items:
@@ -174,7 +213,7 @@ def _apply_known_fields(reading: ShengdaReading, items: dict[int, bytes]) -> Non
         if liters:
             reading.pulse_constant_label = f"{liters} L/pulse"
     if 0x1A in items and len(items[0x1A]) >= 2:
-        raw16 = int.from_bytes(items[0x1A], "big")
+        raw16 = int.from_bytes(items[0x1A][:2], "big")
         reading.battery_raw = raw16
         reading.battery_v = round(raw16 / 16.4, 2)
     if 0x33 in items and len(items[0x33]) >= 2:
@@ -185,7 +224,16 @@ def _apply_known_fields(reading: ShengdaReading, items: dict[int, bytes]) -> Non
         reading.valve_fault = bool(sw1 & 0x80)
         reading.battery_low = bool(sw1 & 0x40)
         reading.magnetic_attack = bool(sw1 & 0x20)
+        reading.battery_removed = bool(sw1 & 0x10)
         reading.valve_open = not bool(sw1 & 0x04)
+        reading.metering_fault = bool(sw1 & 0x02)
+        reading.remote_flag = bool(sw1 & 0x01)
+        reading.water_inlet_alarm = bool(sw2 & 0x80)
+        reading.water_return_alarm = bool(sw2 & 0x40)
+        reading.flow_alarm = bool(sw2 & 0x20)
+        reading.meter_status = (sw2 >> 2) & 0x07
+        reading.meter_status_label = METER_STATUS_LABELS.get(reading.meter_status, "unknown")
+        reading.historical_magnetic_attack = bool(sw2 & 0x02)
     if 0x23 in items:
         reading.trigger_source = items[0x23][0]
         reading.trigger_label = TRIGGER_LABELS.get(reading.trigger_source, "other")
