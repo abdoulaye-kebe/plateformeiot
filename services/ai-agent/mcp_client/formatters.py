@@ -148,14 +148,24 @@ def _format_list_water_meters(data: dict[str, Any]) -> str:
 
 def _format_water_meter_telemetry(data: dict[str, Any]) -> str:
     if data.get("error"):
-        return f"Erreur : {data['error']}"
+        err = data["error"]
+        lines = [f"Erreur : {err}"]
+        for dev in data.get("devices") or []:
+            lines.append(f"  • {dev.get('name', '?')} — {dev.get('devEui')}")
+        return "\n".join(lines)
+
+    def disp(value: Any, default: str = "—") -> str:
+        if value is None:
+            return default
+        return str(value)
+
     lines = [
         f"Compteur {data.get('name') or data.get('devEui')}",
         f"- DevEUI          : {data.get('devEui')}",
-        f"- Index           : {data.get('indexM3', '—')} m³",
-        f"- Batterie        : {data.get('batteryV', '—')} V",
-        f"- Vanne           : {data.get('valveStatus', '—')}",
-        f"- Dernier relevé  : {data.get('lastReadingAt') or data.get('lastSeenAt') or '—'}",
+        f"- Index           : {disp(data.get('indexM3'))} m³",
+        f"- Batterie        : {disp(data.get('batteryV'))} V",
+        f"- Vanne           : {data.get('valveStatus') or '—'}",
+        f"- Dernier relevé  : {disp(data.get('lastReadingAt') or data.get('lastSeenAt'))}",
     ]
     if data.get("batteryLow"):
         lines.append("- Alerte          : batterie faible")

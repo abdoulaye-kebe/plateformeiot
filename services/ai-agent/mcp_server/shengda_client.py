@@ -87,12 +87,13 @@ class ShengdaClient:
             readings = []
 
         live: dict[str, Any] | None = None
-        if not meter and not readings:
+        device = await self._device_summary(dev_eui)
+        preview = _build_telemetry(dev_eui, meter, readings, None, device)
+        if not _telemetry_has_values(preview):
             live = await self._decode_from_chirpstack_events(dev_eui)
             if live:
                 source = "chirpstack-decode"
 
-        device = await self._device_summary(dev_eui)
         telemetry = _build_telemetry(dev_eui, meter, readings, live, device)
         telemetry["source"] = source
         return telemetry
@@ -105,7 +106,7 @@ class ShengdaClient:
             meters = []
 
         if meters:
-            dev_eui = (meters[0].get("dev_eui") or "").lower()
+            dev_eui = _pick_best_meter_dev_eui(meters)
             if dev_eui:
                 result = await self.get_meter_telemetry(dev_eui, readings_limit=readings_limit)
                 result["autoSelected"] = True
@@ -177,6 +178,26 @@ class ShengdaClient:
             event = item.get("event", item)
             if event.get("type") not in (None, "up"):
                 continue
+
+            obj = event.get("object")
+            if isinstance(obj, dict) and (
+                obj.get("indexM3") is not None or obj.get("batteryV") is not None or obj.get("data", {}).get("indexM3") is not None
+            ):
+                data = obj.get("data") if isinstance(obj.get("data"), dict) else obj
+                return {
+                    "indexM3": data.get("indexM3"),
+                    "indexLiters": data.get("indexLiters"),
+                    "batteryV": data.get("batteryV"),
+                    "valveOpen": data.get("valveOpen"),
+                    "valveFault": data.get("valveFault"),
+                    "batteryLow": data.get("batteryLow"),
+                    "magneticAttack": data.get("magneticAttack"),
+                    "triggerLabel": data.get("triggerLabel"),
+                    "eventTime": event.get("time"),
+                    "fCnt": event.get("fCnt"),
+                    "fPort": event.get("fPort"),
+                }
+
             payload = event.get("data") or event.get("objectJSON", {}).get("hex")
             if not payload:
                 continue
@@ -253,3 +274,21 @@ def _first(*values: Any) -> Any:
         if value is not None:
             return value
     return None
+
+
+def _telemetry_has_values(telemetry: dict[str, Any]) -> bool:
+    return any(
+        telemetry.get(key) is not None
+        for key in ("indexM3", "batteryV", "valveOpen", "indexLiters", "pulseCount")
+    )
+
+
+def _pick_best_meter_dev_eui(meters: list[dict[str, Any]]) -> str:
+    for meter in meters:
+        if meter.get("last_index_m3") is not None or meter.get("battery_v") is not None:
+            dev_eui = (meter.get("dev_eui") or "").lower()
+            if dev_eui:
+                return dev_eui
+    if meters:
+        return (meters[0].get("dev_eui") or "").lower()
+    return ""

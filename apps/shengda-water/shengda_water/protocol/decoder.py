@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -112,9 +114,25 @@ def _read_tv_items(data: bytes, start: int, end: int) -> dict[int, bytes]:
     return items
 
 
+def normalize_payload_hex(payload: str) -> str:
+    """Accepte hex ou base64 (ChirpStack MQTT / NATS)."""
+    raw = payload.strip().replace(" ", "")
+    if not raw:
+        return ""
+    try:
+        bytes.fromhex(raw)
+        return raw.lower()
+    except ValueError:
+        pass
+    return binascii.hexlify(base64.b64decode(raw)).decode()
+
+
 def decode_payload(hex_payload: str) -> ShengdaReading:
-    raw = bytes.fromhex(hex_payload.replace(" ", "").lower())
-    reading = ShengdaReading(raw_hex=hex_payload.lower())
+    normalized = normalize_payload_hex(hex_payload)
+    if not normalized:
+        return ShengdaReading(raw_hex="")
+    raw = bytes.fromhex(normalized)
+    reading = ShengdaReading(raw_hex=normalized)
 
     if not raw:
         return reading
