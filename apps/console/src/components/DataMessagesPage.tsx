@@ -26,6 +26,22 @@ type AppRow = { id?: string; application?: { id?: string; name?: string } };
 type DecoderRow = { vendor?: string; script?: string; name?: string };
 type DecodedEntry = { data: Record<string, unknown>; preview: string } | { error: string };
 
+function decodeMessageRow(m: MessageRow): DecodedEntry | undefined {
+  if (m.decoded && Object.keys(m.decoded).length > 0) {
+    return {
+      data: { data: m.decoded },
+      preview: m.decodePreview || formatDecodedPreview({ data: m.decoded }),
+    };
+  }
+  if (!m.payloadHex) return undefined;
+  try {
+    const data = decodeShengdaPayload(m.payloadHex);
+    return { data: { data }, preview: formatDecodedPreview({ data }) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Décodage impossible" };
+  }
+}
+
 function toLocalInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -39,7 +55,6 @@ export default function DataMessagesPage() {
   const [showDetails, setShowDetails] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [decoderScript, setDecoderScript] = useState<string | null>(null);
-  const [decodedById, setDecodedById] = useState<Record<number, DecodedEntry>>({});
 
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
@@ -94,38 +109,22 @@ export default function DataMessagesPage() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (messages.length === 0) {
-      setDecodedById({});
-      return;
-    }
+  const decodedById = useMemo(() => {
     const next: Record<number, DecodedEntry> = {};
     for (const m of messages) {
-      if (m.decoded && Object.keys(m.decoded).length > 0) {
-        next[m.id] = {
-          data: { data: m.decoded },
-          preview: m.decodePreview || formatDecodedPreview({ data: m.decoded }),
-        };
-        continue;
-      }
-      if (!m.payloadHex) continue;
-      try {
-        const data = decodeShengdaPayload(m.payloadHex);
-        next[m.id] = { data: { data }, preview: formatDecodedPreview({ data }) };
-      } catch (e) {
-        if (decoderScript) {
-          try {
-            const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);
-            next[m.id] = { data: raw, preview: formatDecodedPreview(raw) };
-            continue;
-          } catch {
-            /* fallback JS codec */
-          }
+      const entry = decodeMessageRow(m);
+      if (!entry && m.payloadHex && decoderScript) {
+        try {
+          const raw = testDecodeUplink(decoderScript, m.payloadHex, m.fPort ?? 1);
+          next[m.id] = { data: raw, preview: formatDecodedPreview(raw) };
+          continue;
+        } catch {
+          /* codec JS tenant */
         }
-        next[m.id] = { error: e instanceof Error ? e.message : "Décodage impossible" };
       }
+      if (entry) next[m.id] = entry;
     }
-    setDecodedById(next);
+    return next;
   }, [messages, decoderScript]);
 
   const toggleFilter = (key: string) => {
@@ -279,7 +278,9 @@ export default function DataMessagesPage() {
                 </tr>
               </thead>
               <tbody>
-                {messages.map((m) => (
+                {messages.map((m) => {
+                  const decoded = decodedById[m.id] ?? decodeMessageRow(m);
+                  return (
                     <tr key={m.id} className="border-b border-gray-100 align-top hover:bg-gray-50/80">
                       <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">
                         {new Date(m.time).toLocaleString("fr-FR")}
@@ -300,13 +301,13 @@ export default function DataMessagesPage() {
                         {m.fPort != null && <div>fPort {m.fPort}</div>}
                       </td>
                       <td className="max-w-md px-3 py-2">
-                        {expanded === m.id && decodedById[m.id] && "data" in decodedById[m.id] ? (
+                        {expanded === m.id && decoded && "data" in decoded ? (
                           <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-[10px] text-emerald-300">
-                            {JSON.stringify(unwrapDecodedData(decodedById[m.id].data), null, 2)}
+                            {JSON.stringify(unwrapDecodedData(decoded.data), null, 2)}
                           </pre>
-                        ) : decodedById[m.id] && "preview" in decodedById[m.id] ? (
+                        ) : decoded && "preview" in decoded ? (
                           <div>
-                            <div className="text-xs text-gray-800">{decodedById[m.id].preview}</div>
+                            <div className="text-xs text-gray-800">{decoded.preview}</div>
                             {showDetails && m.payloadHex && (() => {
                               try {
                                 const hex = normalizePayloadToHex(m.payloadHex);
@@ -321,8 +322,8 @@ export default function DataMessagesPage() {
                               }
                             })()}
                           </div>
-                        ) : decodedById[m.id] && "error" in decodedById[m.id] ? (
-                          <span className="text-xs text-amber-700">{decodedById[m.id].error}</span>
+                        ) : decoded && "error" in decoded ? (
+                          <span className="text-xs text-amber-700">{decoded.error}</span>
                         ) : (
                           <code className="block truncate font-mono text-[10px] text-gray-600">
                             {m.payloadHex ? `{ hex: "${m.payloadHex.slice(0, 40)}${m.payloadHex.length > 40 ? "…" : ""}" }` : "—"}
@@ -345,7 +346,8 @@ export default function DataMessagesPage() {
                         </button>
                       </td>
                     </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
