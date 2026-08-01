@@ -51,8 +51,10 @@ def _parse_event_time(value: str | None) -> datetime | None:
 
 
 async def handle_uplink_event(event: dict[str, Any]) -> None:
-    tenant_id = event.get("tenantId") or ""
+    tenant_id = _resolve_event_tenant(event)
     if not tenant_id:
+        dev_hint = (event.get("devEui") or (event.get("device") or {}).get("devEui") or "?").lower()
+        logger.warning("uplink skip devEui=%s: tenantId introuvable", dev_hint)
         return
 
     device = event.get("device") or {}
@@ -63,6 +65,7 @@ async def handle_uplink_event(event: dict[str, Any]) -> None:
     payload = event.get("payload") or {}
     hex_payload = payload.get("hex") or event.get("data") or ""
     if not hex_payload:
+        logger.debug("uplink skip devEui=%s: payload vide", dev_eui)
         return
 
     try:
@@ -95,6 +98,27 @@ async def handle_uplink_event(event: dict[str, Any]) -> None:
         reading.valve_open,
         reading.battery_v,
     )
+
+
+def _resolve_event_tenant(event: dict[str, Any]) -> str | None:
+    tenant_id = (event.get("tenantId") or "").strip()
+    if tenant_id:
+        return tenant_id
+
+    device = event.get("device") or {}
+    application_id = device.get("applicationId") or event.get("applicationId")
+    if application_id:
+        resolved = store.resolve_tenant_by_application(str(application_id))
+        if resolved:
+            return resolved
+
+    cs_tenant = device.get("tenantId") or event.get("chirpstackTenantId")
+    if cs_tenant:
+        resolved = store.resolve_platform_tenant_by_chirpstack(str(cs_tenant))
+        if resolved:
+            return resolved
+
+    return None
 
 
 @asynccontextmanager
@@ -299,10 +323,29 @@ async def list_meters(
     tenantId: str | None = Query(None),
     chirpstackTenantId: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
+    sync: bool = Query(True, description="Synchroniser depuis payload_archives si la liste est vide"),
 ) -> dict[str, Any]:
     tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
     meters = store.list_meters(tenant, limit)
-    return {"result": meters, "totalCount": len(meters)}
+    synced = 0
+    if sync and not meters:
+        synced = store.sync_meters_from_archives(tenant, limit=min(limit, 200))
+        if synced:
+            logger.info("synced %s shengda meter(s) from payload_archives tenant=%s", synced, tenant)
+            meters = store.list_meters(tenant, limit)
+    return {"result": meters, "totalCount": len(meters), "syncedFromArchives": synced}
+
+
+@app.post("/meters/sync")
+async def sync_meters(
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    synced = store.sync_meters_from_archives(tenant, limit=limit)
+    meters = store.list_meters(tenant, limit)
+    return {"synced": synced, "totalCount": len(meters), "result": meters}
 
 
 @app.get("/meters/{dev_eui}")

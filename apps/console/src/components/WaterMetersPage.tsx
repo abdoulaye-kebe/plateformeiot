@@ -57,9 +57,12 @@ const INTERVAL_PRESETS: { label: string; seconds: number }[] = [
   { label: "10 min", seconds: 600 },
   { label: "30 min", seconds: 1800 },
   { label: "1 h", seconds: 3600 },
+  { label: "4 h", seconds: 14400 },
   { label: "6 h", seconds: 21600 },
   { label: "24 h", seconds: 86400 },
 ];
+
+const HEX16 = /^[0-9a-fA-F]{16}$/;
 
 export default function WaterMetersPage() {
   const { write } = useClientAuth();
@@ -69,19 +72,33 @@ export default function WaterMetersPage() {
   const [commands, setCommands] = useState<CommandRow[]>([]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
-  const [intervalValue, setIntervalValue] = useState("1");
+  const [loadError, setLoadError] = useState("");
+  const [manualDevEui, setManualDevEui] = useState("8254812510001415");
+  const [intervalValue, setIntervalValue] = useState("4");
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("h");
   const [reportHour, setReportHour] = useState("0");
   const [intervalErr, setIntervalErr] = useState("");
 
   const loadMeters = useCallback(async () => {
-    const data = await apiFetch<{ result?: MeterRow[] }>("/api/v1/shengda/meters?limit=200");
-    const rows = data?.result ?? [];
+    setLoadError("");
+    const data = await apiFetch<{ result?: MeterRow[]; syncedFromArchives?: number }>(
+      "/api/v1/shengda/meters?limit=200&sync=true"
+    );
+    if (data === null) {
+      setLoadError("Impossible de charger les compteurs (API Shengda indisponible ou tenant non mappé).");
+      return;
+    }
+    const rows = data.result ?? [];
     setMeters(rows);
+    if (data.syncedFromArchives) {
+      setMessage(`${data.syncedFromArchives} compteur(s) importé(s) depuis les archives de payloads.`);
+    }
     if (!selected && rows.length > 0) {
       setSelected(rows[0].dev_eui);
     }
   }, [selected]);
+
+  const activeDevEui = selected || (HEX16.test(manualDevEui) ? manualDevEui.toLowerCase() : "");
 
   const loadDetails = useCallback(async (devEui: string) => {
     if (!devEui) return;
@@ -98,19 +115,19 @@ export default function WaterMetersPage() {
   }, [loadMeters]);
 
   useEffect(() => {
-    if (selected) loadDetails(selected);
-  }, [selected, loadDetails]);
+    if (activeDevEui) loadDetails(activeDevEui);
+  }, [activeDevEui, loadDetails]);
 
   async function sendCommand(
     action: string,
     extra?: { interval_seconds?: number; report_hour?: number }
   ) {
-    if (!selected || !write) return;
+    if (!activeDevEui || !write) return;
     setBusy(action);
     setMessage("");
     setIntervalErr("");
     const body: Record<string, unknown> = { action, ...extra };
-    const { error } = await apiMutate(`/api/v1/shengda/meters/${selected}/commands`, "POST", body);
+    const { error } = await apiMutate(`/api/v1/shengda/meters/${activeDevEui}/commands`, "POST", body);
     setBusy("");
     if (error) {
       setMessage(error);
@@ -125,7 +142,7 @@ export default function WaterMetersPage() {
     } else {
       setMessage(`Commande « ${action} » envoyée (port 2, confirmée).`);
     }
-    loadDetails(selected);
+    loadDetails(activeDevEui);
   }
 
   function applyIntervalPreset(seconds: number) {
@@ -175,15 +192,28 @@ export default function WaterMetersPage() {
     return intervalToSeconds(raw, intervalUnit);
   })();
 
-  const active = meters.find((m) => m.dev_eui === selected);
+  const active = meters.find((m) => m.dev_eui === selected) ?? (activeDevEui ? { dev_eui: activeDevEui } : undefined);
 
   return (
     <div className="p-4 lg:p-6">
       <PageHeader
         title="Compteurs d'eau Shengda"
         subtitle="Télérelevé d'index, état vanne et commandes downlink (protocole V1.6)"
+        action={
+          <button
+            type="button"
+            onClick={() => loadMeters()}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
+          >
+            Actualiser / synchroniser
+          </button>
+        }
       />
       <RoleBanner />
+
+      {loadError && (
+        <p className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>
+      )}
 
       {message && (
         <p className="mb-4 rounded-lg border border-brand bg-brand-light px-4 py-3 text-sm text-brand-dark">{message}</p>
@@ -216,7 +246,25 @@ export default function WaterMetersPage() {
 
       <Section title="Compteurs">
         {meters.length === 0 ? (
-          <EmptyState message="Aucun relevé Shengda encore reçu. Les uplinks sont décodés automatiquement dès réception sur le réseau." />
+          <div className="space-y-4">
+            <EmptyState message="Aucun relevé Shengda en base pour ce tenant. Les uplinks ChirpStack peuvent être importés depuis les archives au clic sur « Actualiser »." />
+            {write && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-4">
+                <p className="mb-2 text-sm text-gray-700">
+                  Vous pouvez quand même envoyer des commandes downlink en saisissant le DevEUI :
+                </p>
+                <input
+                  className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
+                  placeholder="DevEUI (16 hex)"
+                  value={manualDevEui}
+                  onChange={(e) => setManualDevEui(e.target.value.trim())}
+                />
+                {!HEX16.test(manualDevEui) && manualDevEui.length > 0 && (
+                  <p className="mt-2 text-xs text-red-600">DevEUI invalide (16 caractères hex).</p>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -263,10 +311,10 @@ export default function WaterMetersPage() {
         )}
       </Section>
 
-      {selected && (
+      {activeDevEui && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           {write && (
-            <Section title={`Fréquence de relevé — ${selected}`}>
+            <Section title={`Fréquence de relevé — ${activeDevEui}`}>
               <p className="mb-4 text-xs text-gray-500">
                 Paramètre downlink Shengda T=0x25 — intervalle entre deux rapports périodiques. Plage autorisée :{" "}
                 {formatInterval(INTERVAL_MIN)} à {formatInterval(INTERVAL_MAX)}.
@@ -376,7 +424,7 @@ export default function WaterMetersPage() {
           )}
 
           <Section
-            title={`Contrôle vanne — ${selected}`}
+            title={`Contrôle vanne — ${activeDevEui}`}
             action={
               write ? (
                 <div className="flex flex-wrap gap-2">

@@ -8,7 +8,7 @@ from uuid import UUID
 
 import psycopg
 
-from shengda_water.protocol.decoder import ShengdaReading
+from shengda_water.protocol.decoder import ShengdaReading, decode_payload
 
 
 class ShengdaStore:
@@ -146,6 +146,58 @@ class ShengdaStore:
                 )
                 row = cur.fetchone()
                 return row[0] if row else None
+
+    def resolve_tenant_by_application(self, application_id: str) -> str | None:
+        if not application_id:
+            return None
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT tenant_id::text FROM tenant_applications
+                    WHERE chirpstack_application_id = %s::uuid
+                    LIMIT 1
+                    """,
+                    (application_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+
+    def sync_meters_from_archives(self, tenant_id: str, limit: int = 100) -> int:
+        """Importe les compteurs Shengda détectables depuis payload_archives."""
+        synced = 0
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (dev_eui)
+                           dev_eui, application_id, payload_hex, f_port, f_cnt, time
+                    FROM payload_archives
+                    WHERE tenant_id = %s::uuid AND COALESCE(payload_hex, '') <> ''
+                    ORDER BY dev_eui, time DESC
+                    LIMIT %s
+                    """,
+                    (tenant_id, limit),
+                )
+                rows = cur.fetchall()
+        for dev_eui, application_id, payload_hex, f_port, f_cnt, event_time in rows:
+            try:
+                reading = decode_payload(str(payload_hex))
+            except Exception:
+                continue
+            if reading.index_m3 is None and reading.status_word_1 is None and reading.battery_v is None:
+                continue
+            self.upsert_meter_from_reading(tenant_id, dev_eui, application_id, reading)
+            self.insert_reading(
+                tenant_id,
+                dev_eui,
+                reading,
+                f_cnt=f_cnt,
+                f_port=f_port,
+                event_time=event_time,
+            )
+            synced += 1
+        return synced
 
     def get_latest_payload_archive(self, tenant_id: str, dev_eui: str) -> dict[str, Any] | None:
         with psycopg.connect(self.database_url) as conn:
