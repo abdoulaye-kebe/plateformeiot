@@ -21,11 +21,11 @@ const HEX32 = /^[0-9a-fA-F]{32}$/;
 const SUGGESTIONS = [
   "Donne-moi une vue d'ensemble du réseau",
   "Combien de gateways avons-nous ?",
-  "Liste les devices",
   "Liste les compteurs d'eau",
   "Quel est l'index du compteur 8254812510001415 ?",
-  "Valeur en m3 de la dernière remontée ?",
-  "Ajoute un device",
+  "Ferme la vanne du compteur 8254812510001415",
+  "Ouvre la vanne du compteur 8254812510001415",
+  "Intervalle de relevé 1 h pour 8254812510001415",
   "Quels devices ont une batterie faible ?",
 ];
 
@@ -97,7 +97,7 @@ export default function AgentChatPage() {
     {
       role: "assistant",
       content:
-        "Bonjour ! Je suis votre agent LoRaWAN. Je peux lister, créer, modifier et diagnostiquer vos gateways et devices.\n\nDites « ajoute un device » ou « ajoute une gateway » pour un formulaire guidé.\n\nPour supprimer, ajoutez **confirm** à la fin.",
+        "Bonjour ! Je suis votre agent LoRaWAN. Je peux lister et diagnostiquer le réseau, lire les compteurs d'eau (index m³, batterie, vanne) et **envoyer des commandes downlink** : ouvrir/fermer la vanne, télérelevé forcé, intervalle de rapport.\n\nExemples : « Ferme la vanne du compteur 8254812510001415 » · « Intervalle 1 h pour 8254812510001415 ».\n\nDites « ajoute un device » pour un formulaire guidé. Pour supprimer, ajoutez **confirm** à la fin.",
     },
   ]);
   const [input, setInput] = useState("");

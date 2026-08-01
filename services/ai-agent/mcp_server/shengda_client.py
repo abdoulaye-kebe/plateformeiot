@@ -120,6 +120,36 @@ class ShengdaClient:
                 low.append(meter)
         return {"totalScanned": len(data.get("result", [])), "lowBatteryMeters": low}
 
+    async def send_meter_command(
+        self,
+        dev_eui: str,
+        action: str,
+        interval_seconds: int | None = None,
+        report_hour: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"action": action.strip().lower()}
+        if interval_seconds is not None:
+            body["interval_seconds"] = interval_seconds
+        if report_hour is not None:
+            body["report_hour"] = report_hour
+        params = self._tenant_params()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/meters/{dev_eui.strip().lower()}/commands",
+                params=params,
+                json=body,
+            )
+            if resp.status_code >= 400:
+                raise httpx.HTTPStatusError(
+                    f"Shengda {resp.status_code}: {resp.text}",
+                    request=resp.request,
+                    response=resp,
+                )
+            return resp.json()
+
+    async def list_meter_commands(self, dev_eui: str, limit: int = 10) -> dict[str, Any]:
+        return await self._get(f"/meters/{dev_eui.strip().lower()}/commands", {"limit": min(limit, 50)})
+
     async def _enrich_with_device(self, dev_eui: str, result: dict[str, Any]) -> dict[str, Any]:
         try:
             device = await self.chirpstack.get_device(dev_eui)

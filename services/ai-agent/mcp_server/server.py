@@ -462,6 +462,59 @@ async def decode_water_meter_payload(payload: str) -> dict[str, Any]:
     return await shengda.decode_payload(payload)
 
 
+@mcp.tool()
+async def send_water_meter_command(
+    dev_eui: str,
+    action: str,
+    interval_seconds: int | None = None,
+    report_hour: int | None = None,
+) -> dict[str, Any]:
+    """Envoie une commande downlink Shengda (port 2) : vanne, télérelevé ou paramètres de rapport.
+
+    action:
+      - open, close, dredge : contrôle vanne
+      - dredge_schedule_on, dredge_schedule_off : débourrage programmé
+      - read : télérelevé forcé
+      - set_report_interval : interval_seconds requis (600..86400 s, ex. 3600 = 1 h)
+      - set_report_hour : report_hour requis (0..23)
+    """
+    action = action.strip().lower().replace("-", "_").replace(" ", "_")
+    allowed = {
+        "open",
+        "close",
+        "dredge",
+        "dredge_schedule_on",
+        "dredge_schedule_off",
+        "read",
+        "set_report_interval",
+        "set_interval",
+        "interval",
+        "set_report_hour",
+        "report_hour",
+    }
+    if action not in allowed:
+        return {
+            "error": f"action invalide: {action}",
+            "allowed": sorted(allowed),
+        }
+    if action in ("set_interval", "interval"):
+        action = "set_report_interval"
+    if action == "report_hour":
+        action = "set_report_hour"
+    return await shengda.send_meter_command(
+        dev_eui.strip().lower(),
+        action,
+        interval_seconds=interval_seconds,
+        report_hour=report_hour,
+    )
+
+
+@mcp.tool()
+async def list_water_meter_commands(dev_eui: str, limit: int = 10) -> dict[str, Any]:
+    """Historique des commandes downlink envoyées à un compteur d'eau."""
+    return await shengda.list_meter_commands(dev_eui.strip().lower(), limit=min(limit, 50))
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -497,7 +550,7 @@ def platform_config() -> dict[str, str]:
         "chirpstackRestUrl": cs.base_url,
         "tenantId": cs.tenant_id or "(non configuré)",
         "mcpVersion": "0.2.0",
-        "tools": "read, write, metrics, diagnostics, water-meters, integrations",
+        "tools": "read, write, metrics, diagnostics, water-meters, downlink, integrations",
         "sseEndpoint": f"http://{os.getenv('MCP_PUBLIC_HOST', 'localhost')}:{os.getenv('MCP_PORT', '8095')}/sse",
     }
 

@@ -195,6 +195,83 @@ def _asks_meter_telemetry(lower: str) -> bool:
     return any(w in lower for w in METER_TELEMETRY_WORDS)
 
 
+def _parse_interval_seconds(lower: str) -> int | None:
+    m = re.search(r"(\d+)\s*h(?:eure|ours|our)?\b", lower)
+    if m:
+        return int(m.group(1)) * 3600
+    m = re.search(r"(\d+)\s*min(?:ute)?s?\b", lower)
+    if m:
+        return int(m.group(1)) * 60
+    m = re.search(r"(\d+)\s*(?:s|sec|secondes?)\b", lower)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"(?:toutes?\s+les?\s+|intervalle\s+)(\d+)", lower)
+    if m:
+        val = int(m.group(1))
+        if "min" in lower:
+            return val * 60
+        if re.search(r"\d+\s*h", lower):
+            return val * 3600
+        return val
+    return None
+
+
+def _route_meter_downlink(q: str, lower: str) -> tuple[str, dict[str, Any]] | None:
+    dev_eui = _extract_dev_eui(q)
+
+    if ("vanne" in lower or "valve" in lower) and any(
+        w in lower for w in ("ferme", "fermer", "close", "coupe", "coupé", "couper")
+    ):
+        if dev_eui:
+            return "send_water_meter_command", {"dev_eui": dev_eui, "action": "close"}
+        return "__hint__", {"message": "Pour fermer la vanne, précisez le DevEUI du compteur (16 caractères hex)."}
+
+    if ("vanne" in lower or "valve" in lower) and any(w in lower for w in ("ouvre", "ouvrir", "open")):
+        if dev_eui:
+            return "send_water_meter_command", {"dev_eui": dev_eui, "action": "open"}
+        return "__hint__", {"message": "Pour ouvrir la vanne, précisez le DevEUI du compteur (16 caractères hex)."}
+
+    if ("vanne" in lower or "valve" in lower) and any(w in lower for w in ("débour", "debour", "dredge")):
+        if dev_eui:
+            return "send_water_meter_command", {"dev_eui": dev_eui, "action": "dredge"}
+        return "__hint__", {"message": "Pour débourrer la vanne, précisez le DevEUI du compteur."}
+
+    if any(w in lower for w in ("télérelev", "telelev", "relevé forcé", "releve force", "forcer le relevé")):
+        if dev_eui:
+            return "send_water_meter_command", {"dev_eui": dev_eui, "action": "read"}
+        return "__hint__", {"message": "Pour un télérelevé forcé, précisez le DevEUI du compteur."}
+
+    if any(w in lower for w in ("intervalle", "fréquence", "frequence", "périod", "period")) and any(
+        w in lower for w in ("relev", "rapport", "envoi", "transmis", "minute", "heure", "horaire")
+    ):
+        seconds = _parse_interval_seconds(lower)
+        if dev_eui and seconds:
+            if seconds < 600 or seconds > 86400:
+                return "__hint__", {
+                    "message": f"Intervalle {seconds}s hors plage — utilisez 600 à 86400 secondes (ex. 3600 = 1 h)."
+                }
+            return "send_water_meter_command", {
+                "dev_eui": dev_eui,
+                "action": "set_report_interval",
+                "interval_seconds": seconds,
+            }
+        if not dev_eui:
+            return "__hint__", {"message": "Précisez le DevEUI et l'intervalle (ex. « intervalle 1 h pour 8254812510001415 »)."}
+        return "__hint__", {"message": "Précisez l'intervalle (ex. 3600 s, 1 h, 30 min)."}
+
+    m = re.search(r"(?:heure\s+de\s+(?:début|debut|rapport)|report_hour)\s+(\d{1,2})", lower)
+    if m and dev_eui:
+        hour = int(m.group(1))
+        if 0 <= hour <= 23:
+            return "send_water_meter_command", {
+                "dev_eui": dev_eui,
+                "action": "set_report_hour",
+                "report_hour": hour,
+            }
+
+    return None
+
+
 def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
     q = _normalize_question(question.strip())
     lower = q.lower()
@@ -239,6 +316,10 @@ def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
 
     if "batter" in lower:
         return "find_low_battery_devices", {"limit": 100}
+
+    downlink = _route_meter_downlink(q, lower)
+    if downlink:
+        return downlink
 
     dev_eui = _extract_dev_eui(q)
     if _asks_meter_telemetry(lower) or (

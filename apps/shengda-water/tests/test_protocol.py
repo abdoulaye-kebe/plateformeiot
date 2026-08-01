@@ -15,6 +15,13 @@ def test_valve_close_hex():
     assert cmd["payloadHex"] == "261f0146"
 
 
+def test_timing_interval_one_hour():
+    from shengda_water.protocol.encoder import timing_interval_command
+
+    cmd = timing_interval_command(3600)
+    assert cmd["payloadHex"] == "262500000e1069"
+
+
 def test_battery_decode():
     reading = decode_payload("241A003c")
     assert reading.battery_raw == 0x003C

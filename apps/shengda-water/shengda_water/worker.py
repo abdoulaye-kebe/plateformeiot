@@ -19,7 +19,12 @@ from pydantic import BaseModel, Field
 
 from shengda_water.chirpstack import ChirpStackClient
 from shengda_water.protocol.decoder import decode_payload
-from shengda_water.protocol.encoder import read_meter_info_command, valve_command
+from shengda_water.protocol.encoder import (
+    read_meter_info_command,
+    report_start_hour_command,
+    timing_interval_command,
+    valve_command,
+)
 from shengda_water.store import ShengdaStore
 
 logging.basicConfig(level=logging.INFO)
@@ -124,8 +129,16 @@ async def ui() -> FileResponse:
     return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
 
 
-class ValveCommandBody(BaseModel):
-    action: str = Field(..., description="open | close | dredge | read")
+class MeterCommandBody(BaseModel):
+    action: str = Field(
+        ...,
+        description=(
+            "open | close | dredge | dredge_schedule_on | dredge_schedule_off | read | "
+            "set_report_interval | set_report_hour"
+        ),
+    )
+    interval_seconds: int | None = Field(None, ge=600, le=86400)
+    report_hour: int | None = Field(None, ge=0, le=23)
 
 
 class DecodeBody(BaseModel):
@@ -367,20 +380,34 @@ async def get_commands(
 @app.post("/meters/{dev_eui}/commands")
 async def send_command(
     dev_eui: str,
-    body: ValveCommandBody,
+    body: MeterCommandBody,
     tenantId: str | None = Query(None),
     chirpstackTenantId: str | None = Query(None),
 ) -> dict[str, Any]:
     tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
-    action = body.action.lower().strip()
+    action = body.action.lower().strip().replace("-", "_").replace(" ", "_")
+
     if action == "read":
         cmd = read_meter_info_command()
         command_type = "read_meter"
     elif action in ("open", "close", "dredge", "dredge_schedule_on", "dredge_schedule_off"):
         cmd = valve_command(action)
         command_type = f"valve_{action}"
+    elif action in ("set_report_interval", "set_interval", "interval"):
+        if body.interval_seconds is None:
+            raise HTTPException(status_code=400, detail="interval_seconds required (600..86400)")
+        cmd = timing_interval_command(body.interval_seconds)
+        command_type = "set_report_interval"
+    elif action in ("set_report_hour", "report_hour"):
+        if body.report_hour is None:
+            raise HTTPException(status_code=400, detail="report_hour required (0..23)")
+        cmd = report_start_hour_command(body.report_hour)
+        command_type = "set_report_hour"
     else:
-        raise HTTPException(status_code=400, detail="action must be open, close, dredge or read")
+        raise HTTPException(
+            status_code=400,
+            detail="action must be open, close, dredge, read, set_report_interval or set_report_hour",
+        )
 
     cmd_id = store.insert_command(tenant, dev_eui, command_type, cmd["payloadHex"])
 

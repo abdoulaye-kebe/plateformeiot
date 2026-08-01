@@ -27,6 +27,8 @@ def format_tool_result(tool_name: str, raw: str, intent: str | None = None) -> s
         "get_water_meter_telemetry": _format_water_meter_telemetry,
         "get_latest_water_meter_reading": _format_water_meter_telemetry,
         "get_water_meter_readings": _format_water_meter_readings,
+        "send_water_meter_command": _format_water_meter_command,
+        "list_water_meter_commands": _format_water_meter_commands,
         "create_gateway": _format_create_gateway,
         "create_device": _format_create_device,
         "get_device_radio_info": _format_device_radio,
@@ -189,6 +191,38 @@ def _format_water_meter_readings(data: dict[str, Any]) -> str:
         valve = "ouverte" if row.get("valve_open") else "fermée" if row.get("valve_open") is False else "?"
         lines.append(
             f"  • {row.get('time')} — {row.get('index_m3', '—')} m³ · {row.get('battery_v', '—')} V · vanne {valve}"
+        )
+    return "\n".join(lines)
+
+
+def _format_water_meter_command(data: dict[str, Any]) -> str:
+    if data.get("error"):
+        allowed = data.get("allowed")
+        msg = f"Erreur : {data['error']}"
+        if allowed:
+            msg += f"\nActions : {', '.join(allowed)}"
+        return msg
+    action = data.get("commandType", "?")
+    payload = data.get("payloadHex", "—")
+    status = (data.get("chirpstack") or {}).get("status", "queued")
+    return (
+        "Commande downlink envoyée\n"
+        f"- Type     : {action}\n"
+        f"- Payload  : {payload}\n"
+        f"- Statut   : {status}\n"
+        f"- ID       : {data.get('id', '—')}"
+    )
+
+
+def _format_water_meter_commands(data: dict[str, Any]) -> str:
+    items = data.get("result", [])
+    if not items:
+        return "Aucune commande downlink enregistrée pour ce compteur."
+    lines = [f"Commandes downlink ({len(items)}) :"]
+    for row in items[:10]:
+        lines.append(
+            f"  • {row.get('created_at', '—')} — {row.get('command_type', '?')} — "
+            f"{row.get('status', '?')} — {row.get('payload_hex', '')[:20]}"
         )
     return "\n".join(lines)
 
