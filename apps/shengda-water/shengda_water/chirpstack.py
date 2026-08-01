@@ -21,11 +21,10 @@ class ChirpStackClient:
         confirmed: bool = True,
     ) -> dict[str, Any]:
         body = {
-            "deviceQueueItem": {
+            "queueItem": {
                 "confirmed": confirmed,
                 "data": payload_base64,
-                "devEUI": dev_eui.lower(),
-                "fPort": f_port,
+                "fPort": max(1, min(int(f_port), 255)),
             }
         }
         headers = {"Accept": "application/json", "Content-Type": "application/json"}

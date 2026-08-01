@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
@@ -97,7 +98,7 @@ export default function AgentChatPage() {
     {
       role: "assistant",
       content:
-        "Bonjour ! Je suis votre agent LoRaWAN. Je peux lister et diagnostiquer le réseau, lire les compteurs d'eau (index m³, batterie, vanne) et **envoyer des commandes downlink** : ouvrir/fermer la vanne, télérelevé forcé, intervalle de rapport.\n\nExemples : « Ferme la vanne du compteur 8254812510001415 » · « Intervalle 1 h pour 8254812510001415 ».\n\nDites « ajoute un device » pour un formulaire guidé. Pour supprimer, ajoutez **confirm** à la fin.",
+        "Bonjour ! Je suis votre agent LoRaWAN. Je peux lister et diagnostiquer le réseau, lire les compteurs d'eau (index m³, batterie, vanne) et **envoyer des commandes downlink** : ouvrir/fermer la vanne, télérelevé forcé, intervalle de rapport.\n\nExemples : « Ferme la vanne du compteur 8254812510001415 » · « Intervalle 1 h pour 8254812510001415 ».\n\nPour définir la fréquence de relevé avec précision (secondes, minutes ou heures), utilisez la page **Compteurs eau** (menu Data).\n\nDites « ajoute un device » pour un formulaire guidé. Pour supprimer, ajoutez **confirm** à la fin.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -151,6 +152,15 @@ export default function AgentChatPage() {
           <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-950/20 p-3 text-sm text-sky-200">
             Mode viewer : lecture et diagnostics OK. Pour créer/supprimer via l&apos;agent, connectez-vous en <strong>operator</strong>.
           </div>
+        )}
+
+        {write && (
+          <p className="mb-4 text-sm text-gray-600">
+            Fréquence de relevé manuelle :{" "}
+            <Link href="/apps/shengda/water-meters" className="text-brand hover:underline">
+              Compteurs eau →
+            </Link>
+          </p>
         )}
 
         <div className="mb-4 flex flex-wrap gap-2">

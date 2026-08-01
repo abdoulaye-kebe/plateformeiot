@@ -36,6 +36,31 @@ type CommandRow = {
   detail?: string;
 };
 
+type IntervalUnit = "s" | "min" | "h";
+
+const INTERVAL_MIN = 600;
+const INTERVAL_MAX = 86400;
+
+function intervalToSeconds(value: number, unit: IntervalUnit): number {
+  if (unit === "h") return Math.round(value * 3600);
+  if (unit === "min") return Math.round(value * 60);
+  return Math.round(value);
+}
+
+function formatInterval(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600} h`;
+  if (seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${seconds} s`;
+}
+
+const INTERVAL_PRESETS: { label: string; seconds: number }[] = [
+  { label: "10 min", seconds: 600 },
+  { label: "30 min", seconds: 1800 },
+  { label: "1 h", seconds: 3600 },
+  { label: "6 h", seconds: 21600 },
+  { label: "24 h", seconds: 86400 },
+];
+
 export default function WaterMetersPage() {
   const { write } = useClientAuth();
   const [meters, setMeters] = useState<MeterRow[]>([]);
@@ -44,6 +69,10 @@ export default function WaterMetersPage() {
   const [commands, setCommands] = useState<CommandRow[]>([]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [intervalValue, setIntervalValue] = useState("1");
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("h");
+  const [reportHour, setReportHour] = useState("0");
+  const [intervalErr, setIntervalErr] = useState("");
 
   const loadMeters = useCallback(async () => {
     const data = await apiFetch<{ result?: MeterRow[] }>("/api/v1/shengda/meters?limit=200");
@@ -72,19 +101,79 @@ export default function WaterMetersPage() {
     if (selected) loadDetails(selected);
   }, [selected, loadDetails]);
 
-  async function sendCommand(action: string) {
+  async function sendCommand(
+    action: string,
+    extra?: { interval_seconds?: number; report_hour?: number }
+  ) {
     if (!selected || !write) return;
     setBusy(action);
     setMessage("");
-    const { error } = await apiMutate(`/api/v1/shengda/meters/${selected}/commands`, "POST", { action });
+    setIntervalErr("");
+    const body: Record<string, unknown> = { action, ...extra };
+    const { error } = await apiMutate(`/api/v1/shengda/meters/${selected}/commands`, "POST", body);
     setBusy("");
     if (error) {
       setMessage(error);
       return;
     }
-    setMessage(`Commande « ${action} » envoyée (port 2, confirmée).`);
+    if (action === "set_report_interval" && extra?.interval_seconds != null) {
+      setMessage(
+        `Intervalle de relevé défini à ${formatInterval(extra.interval_seconds)} (${extra.interval_seconds} s) — downlink port 2 envoyé.`
+      );
+    } else if (action === "set_report_hour" && extra?.report_hour != null) {
+      setMessage(`Heure de début de rapport définie à ${extra.report_hour} h — downlink port 2 envoyé.`);
+    } else {
+      setMessage(`Commande « ${action} » envoyée (port 2, confirmée).`);
+    }
     loadDetails(selected);
   }
+
+  function applyIntervalPreset(seconds: number) {
+    if (seconds % 3600 === 0) {
+      setIntervalValue(String(seconds / 3600));
+      setIntervalUnit("h");
+    } else if (seconds % 60 === 0) {
+      setIntervalValue(String(seconds / 60));
+      setIntervalUnit("min");
+    } else {
+      setIntervalValue(String(seconds));
+      setIntervalUnit("s");
+    }
+    setIntervalErr("");
+  }
+
+  function submitInterval(e: React.FormEvent) {
+    e.preventDefault();
+    const raw = Number(intervalValue.replace(",", "."));
+    if (!Number.isFinite(raw) || raw <= 0) {
+      setIntervalErr("Saisissez une valeur numérique positive.");
+      return;
+    }
+    const seconds = intervalToSeconds(raw, intervalUnit);
+    if (seconds < INTERVAL_MIN || seconds > INTERVAL_MAX) {
+      setIntervalErr(`Intervalle hors plage : ${INTERVAL_MIN} à ${INTERVAL_MAX} secondes (10 min à 24 h).`);
+      return;
+    }
+    setIntervalErr("");
+    sendCommand("set_report_interval", { interval_seconds: seconds });
+  }
+
+  function submitReportHour(e: React.FormEvent) {
+    e.preventDefault();
+    const hour = Number(reportHour);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+      setIntervalErr("Heure invalide — choisissez entre 0 et 23.");
+      return;
+    }
+    setIntervalErr("");
+    sendCommand("set_report_hour", { report_hour: hour });
+  }
+
+  const previewSeconds = (() => {
+    const raw = Number(intervalValue.replace(",", "."));
+    if (!Number.isFinite(raw) || raw <= 0) return null;
+    return intervalToSeconds(raw, intervalUnit);
+  })();
 
   const active = meters.find((m) => m.dev_eui === selected);
 
@@ -176,6 +265,116 @@ export default function WaterMetersPage() {
 
       {selected && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {write && (
+            <Section title={`Fréquence de relevé — ${selected}`}>
+              <p className="mb-4 text-xs text-gray-500">
+                Paramètre downlink Shengda T=0x25 — intervalle entre deux rapports périodiques. Plage autorisée :{" "}
+                {formatInterval(INTERVAL_MIN)} à {formatInterval(INTERVAL_MAX)}.
+              </p>
+              <form onSubmit={submitInterval} className="space-y-3">
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-xs text-gray-600">
+                    Valeur
+                    <input
+                      type="number"
+                      min={0.1}
+                      step="any"
+                      value={intervalValue}
+                      onChange={(e) => {
+                        setIntervalValue(e.target.value);
+                        setIntervalErr("");
+                      }}
+                      disabled={!!busy}
+                      className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-gray-600">
+                    Unité
+                    <select
+                      value={intervalUnit}
+                      onChange={(e) => {
+                        setIntervalUnit(e.target.value as IntervalUnit);
+                        setIntervalErr("");
+                      }}
+                      disabled={!!busy}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="s">secondes</option>
+                      <option value="min">minutes</option>
+                      <option value="h">heures</option>
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={!!busy}
+                    className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+                  >
+                    Appliquer l&apos;intervalle
+                  </button>
+                </div>
+                {previewSeconds != null && (
+                  <p
+                    className={`text-xs ${
+                      previewSeconds < INTERVAL_MIN || previewSeconds > INTERVAL_MAX
+                        ? "text-red-600"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    = {previewSeconds} s
+                    {previewSeconds >= INTERVAL_MIN && previewSeconds <= INTERVAL_MAX
+                      ? ` (${formatInterval(previewSeconds)})`
+                      : " — hors plage"}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {INTERVAL_PRESETS.map((p) => (
+                    <button
+                      key={p.seconds}
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => applyIntervalPreset(p.seconds)}
+                      className="rounded-full border border-gray-300 px-3 py-1 text-xs hover:border-brand hover:text-brand disabled:opacity-50"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </form>
+
+              <form onSubmit={submitReportHour} className="mt-6 border-t border-gray-100 pt-4">
+                <p className="mb-2 text-xs text-gray-500">
+                  Heure de début de fenêtre de rapport (T=0x2B, 0–23 h) — optionnel.
+                </p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-xs text-gray-600">
+                    Heure (0–23)
+                    <input
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={reportHour}
+                      onChange={(e) => {
+                        setReportHour(e.target.value);
+                        setIntervalErr("");
+                      }}
+                      disabled={!!busy}
+                      className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={!!busy}
+                    className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light disabled:opacity-50"
+                  >
+                    Définir l&apos;heure
+                  </button>
+                </div>
+              </form>
+
+              {intervalErr && <p className="mt-3 text-xs text-red-600">{intervalErr}</p>}
+            </Section>
+          )}
+
           <Section
             title={`Contrôle vanne — ${selected}`}
             action={

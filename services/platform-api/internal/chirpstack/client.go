@@ -369,11 +369,16 @@ func (c *Client) DeleteTenant(ctx context.Context, tenantID string) error {
 }
 
 func (c *Client) EnqueueDownlink(ctx context.Context, devEUI string, dataBase64 string, fPort int, confirmed bool) (map[string]any, error) {
+	if fPort <= 0 {
+		fPort = 2
+	}
+	if fPort > 255 {
+		fPort = 255
+	}
 	body := map[string]any{
-		"deviceQueueItem": map[string]any{
+		"queueItem": map[string]any{
 			"confirmed": confirmed,
 			"data":      dataBase64,
-			"devEUI":    strings.ToLower(devEUI),
 			"fPort":     fPort,
 		},
 	}

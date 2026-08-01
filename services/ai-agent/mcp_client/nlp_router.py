@@ -205,14 +205,19 @@ def _parse_interval_seconds(lower: str) -> int | None:
     m = re.search(r"(\d+)\s*(?:s|sec|secondes?)\b", lower)
     if m:
         return int(m.group(1))
-    m = re.search(r"(?:toutes?\s+les?\s+|intervalle\s+)(\d+)", lower)
+    m = re.search(r"(?:toutes?\s+les?\s+|intervalle\s+|fr[ée]quence\s+)(\d+)", lower)
     if m:
         val = int(m.group(1))
         if "min" in lower:
             return val * 60
         if re.search(r"\d+\s*h", lower):
             return val * 3600
-        return val
+        if val >= 600:
+            return val
+        return val * 3600 if "h" in lower else val * 60 if "min" in lower else val
+    m = re.search(r"\b(\d{3,5})\b", lower)
+    if m and any(w in lower for w in ("intervalle", "fréquence", "frequence", "relev", "rapport", "périod", "period")):
+        return int(m.group(1))
     return None
 
 

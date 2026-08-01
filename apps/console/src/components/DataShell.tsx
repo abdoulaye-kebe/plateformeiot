@@ -7,6 +7,7 @@ const DATA_NAV = [
   { href: "/data/messages", label: "Data Messages" },
   { href: "/data/analytics", label: "Analytics" },
   { href: "/data/decoders", label: "Decoders" },
+  { href: "/apps/shengda/water-meters", label: "Compteurs eau" },
   { href: "/integrations", label: "Routing & connectors" },
   { href: "/rules", label: "Custom pipelines" },
 ];
