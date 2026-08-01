@@ -268,6 +268,11 @@ export default function DataMessagesPage() {
           <span>
             <strong>{messages.length}</strong> messages affichés / {total} total
           </span>
+          {process.env.NEXT_PUBLIC_BUILD_SHA && process.env.NEXT_PUBLIC_BUILD_SHA !== "dev" && (
+            <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-[10px] text-gray-500">
+              build {process.env.NEXT_PUBLIC_BUILD_SHA}
+            </span>
+          )}
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={showDetails} onChange={(e) => setShowDetails(e.target.checked)} />
             Show details
