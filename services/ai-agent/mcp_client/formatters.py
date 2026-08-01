@@ -25,6 +25,7 @@ def format_tool_result(tool_name: str, raw: str, intent: str | None = None) -> s
         "find_low_battery_devices": _format_low_battery,
         "list_water_meters": _format_list_water_meters,
         "get_water_meter_telemetry": _format_water_meter_telemetry,
+        "get_latest_water_meter_reading": _format_water_meter_telemetry,
         "get_water_meter_readings": _format_water_meter_readings,
         "create_gateway": _format_create_gateway,
         "create_device": _format_create_device,

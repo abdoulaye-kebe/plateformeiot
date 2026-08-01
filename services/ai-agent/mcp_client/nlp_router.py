@@ -8,6 +8,25 @@ from typing import Any
 GATEWAY_WORDS = ("gateway", "gateways", "passerelle", "passerelles")
 DEVICE_WORDS = ("device", "devices", "appareil", "appareils", "capteur", "capteurs", "capteurs")
 METER_WORDS = ("compteur", "compteurs", "meter", "meters", "eau", "shengda")
+METER_TELEMETRY_WORDS = (
+    "m3",
+    "m³",
+    "remont",
+    "relev",
+    "index",
+    "consommation",
+    "vanne",
+    "batterie",
+    "mesure",
+    "mesures",
+    "télémétrie",
+    "telemetrie",
+    "dernière",
+    "derniere",
+    "valeur",
+    "litre",
+    "litres",
+)
 CREATE_WORDS = ("cré", "cre", "create", "ajout", "ajoute", "ajouter", "nouveau", "new", "add ")
 COUNT_WORDS = ("combien", "nombre", "how many", "count", "total", "nb ")
 
@@ -167,6 +186,15 @@ def _parse_device_provision(q: str) -> dict[str, Any] | None:
     return args
 
 
+def _extract_dev_eui(q: str) -> str | None:
+    m = re.search(r"[0-9a-fA-F]{16}", q)
+    return m.group(0).lower() if m else None
+
+
+def _asks_meter_telemetry(lower: str) -> bool:
+    return any(w in lower for w in METER_TELEMETRY_WORDS)
+
+
 def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
     q = _normalize_question(question.strip())
     lower = q.lower()
@@ -211,6 +239,14 @@ def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
 
     if "batter" in lower:
         return "find_low_battery_devices", {"limit": 100}
+
+    dev_eui = _extract_dev_eui(q)
+    if _asks_meter_telemetry(lower) or (
+        _mentions(lower, METER_WORDS) and any(w in lower for w in ("état", "etat", "info", "détail", "detail"))
+    ):
+        if dev_eui:
+            return "get_water_meter_telemetry", {"dev_eui": dev_eui}
+        return "get_latest_water_meter_reading", {}
 
     m = re.search(
         r"(?:index|mesure|mesures|t[ée]l[ée]m[ée]trie|relev[ée]|consommation|vanne|batterie).*(?:compteur|device|dev_eui|deveui)\s+([0-9a-fA-F]{16})",

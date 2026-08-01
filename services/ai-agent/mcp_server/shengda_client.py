@@ -97,6 +97,54 @@ class ShengdaClient:
         telemetry["source"] = source
         return telemetry
 
+    async def get_latest_meter_telemetry(self, readings_limit: int = 5) -> dict[str, Any]:
+        """Dernière remontée : auto-sélection du compteur le plus récent ou du seul device."""
+        try:
+            meters = (await self.list_meters(limit=20)).get("result", [])
+        except Exception:  # noqa: BLE001
+            meters = []
+
+        if meters:
+            dev_eui = (meters[0].get("dev_eui") or "").lower()
+            if dev_eui:
+                result = await self.get_meter_telemetry(dev_eui, readings_limit=readings_limit)
+                result["autoSelected"] = True
+                result["meterCount"] = len(meters)
+                return result
+
+        try:
+            devices = (await self.chirpstack.list_devices(limit=20)).get("result", [])
+        except Exception:  # noqa: BLE001
+            devices = []
+
+        if not devices:
+            return {"error": "Aucun compteur ni device trouvé sur le réseau."}
+
+        if len(devices) == 1:
+            dev_eui = (devices[0].get("device", devices[0]).get("devEui") or "").lower()
+            result = await self.get_meter_telemetry(dev_eui, readings_limit=readings_limit)
+            result["autoSelected"] = True
+            result["meterCount"] = 0
+            result["deviceCount"] = 1
+            return result
+
+        candidates = [
+            (item.get("device", item).get("devEui") or "").lower()
+            for item in devices
+            if (item.get("device", item).get("devEui") or "")
+        ]
+        return {
+            "error": "Plusieurs devices — précisez le DevEUI (16 hex).",
+            "deviceCount": len(candidates),
+            "devices": [
+                {
+                    "devEui": item.get("device", item).get("devEui"),
+                    "name": item.get("device", item).get("name"),
+                }
+                for item in devices[:10]
+            ],
+        }
+
     async def find_low_battery_meters(self, limit: int = 100) -> dict[str, Any]:
         data = await self.list_meters(limit=limit)
         low: list[dict[str, Any]] = []

@@ -439,6 +439,12 @@ async def list_water_meters(limit: int = 50) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def get_latest_water_meter_reading(readings_limit: int = 5) -> dict[str, Any]:
+    """Dernière remontée compteur d'eau (index m³, batterie, vanne) — sans DevEUI si un seul compteur."""
+    return await shengda.get_latest_meter_telemetry(readings_limit=min(readings_limit, 20))
+
+
+@mcp.tool()
 async def get_water_meter_telemetry(dev_eui: str, readings_limit: int = 5) -> dict[str, Any]:
     """Mesures actuelles d'un compteur d'eau : index m³, batterie (V), vanne, alarmes et historique récent."""
     return await shengda.get_meter_telemetry(dev_eui, readings_limit=min(readings_limit, 20))

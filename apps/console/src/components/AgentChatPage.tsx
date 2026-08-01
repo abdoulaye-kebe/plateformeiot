@@ -24,6 +24,7 @@ const SUGGESTIONS = [
   "Liste les devices",
   "Liste les compteurs d'eau",
   "Quel est l'index du compteur 8254812510001415 ?",
+  "Valeur en m3 de la dernière remontée ?",
   "Ajoute un device",
   "Quels devices ont une batterie faible ?",
 ];

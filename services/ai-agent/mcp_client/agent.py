@@ -246,7 +246,9 @@ class LoRaWANAgent:
 
         return (
             "Commande non reconnue sans LLM. Exemples :\n"
-            "- « liste les devices / gateways »\n"
+            "- « liste les devices / gateways / compteurs d'eau »\n"
+            "- « valeur en m3 de la dernière remontée »\n"
+            "- « index du compteur 8254812510001415 »\n"
             "- « je veux créer un device avec DevEUI: … JoinEUI: … AppKey: … »\n"
             "- « vue d'ensemble du réseau »"
         ) + hint
