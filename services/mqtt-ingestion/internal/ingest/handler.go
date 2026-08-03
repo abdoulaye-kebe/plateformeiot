@@ -27,6 +27,7 @@ type GatewayWriter interface {
 
 type EventPublisher interface {
 	PublishUplink(ctx context.Context, event UplinkEvent) error
+	PublishDownlinkAck(ctx context.Context, event DownlinkAckEvent) error
 }
 
 type PayloadArchiver interface {
@@ -52,6 +53,10 @@ func (h *Handler) Handle(topic string, payload []byte) {
 
 	if strings.Contains(topic, "/device/") && strings.HasSuffix(topic, "/event/up") {
 		h.handleUplink(ctx, topic, payload)
+		return
+	}
+	if strings.Contains(topic, "/device/") && strings.HasSuffix(topic, "/event/ack") {
+		h.handleDownlinkAck(ctx, topic, payload)
 		return
 	}
 	if strings.Contains(topic, "/gateway/") && strings.HasSuffix(topic, "/event/stats") {
@@ -184,6 +189,71 @@ func (h *Handler) handleUplink(ctx context.Context, topic string, payload []byte
 	h.logger.Debug("uplink ingested", "devEui", devEUI, "tenantId", tenantID, "rssi", rssi)
 }
 
+func (h *Handler) handleDownlinkAck(ctx context.Context, topic string, payload []byte) {
+	var msg downlinkAckMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		h.logger.Warn("downlink ack parse error", "error", err)
+		return
+	}
+
+	devEUI := strings.ToLower(msg.DeviceInfo.DevEUI)
+	if devEUI == "" {
+		parts := strings.Split(topic, "/")
+		if len(parts) >= 5 {
+			devEUI = strings.ToLower(parts[3])
+		}
+	}
+	if devEUI == "" {
+		return
+	}
+
+	ts := time.Now().UTC()
+	if msg.Time != "" {
+		if t, err := time.Parse(time.RFC3339Nano, msg.Time); err == nil {
+			ts = t.UTC()
+		}
+	}
+
+	appID := msg.DeviceInfo.ApplicationID
+	if appID == "" {
+		parts := strings.Split(topic, "/")
+		if len(parts) >= 3 {
+			appID = parts[1]
+		}
+	}
+
+	tenantID := h.resolveTenant(ctx, appID, "", msg.DeviceInfo.TenantID)
+
+	payloadHex, _, _ := NormalizePayloadData(msg.Data)
+
+	if h.publisher != nil {
+		event := DownlinkAckEvent{
+			Time:          ts,
+			DevEUI:        devEUI,
+			ApplicationID: appID,
+			QueueItemID:   msg.QueueItemID,
+			Acknowledged:  msg.Acknowledged,
+			FCntDown:      msg.FCntDown,
+			FPort:         msg.FPort,
+			PayloadHex:    payloadHex,
+		}
+		if tenantID != nil {
+			event.TenantID = tenantID.String()
+		}
+		if err := h.publisher.PublishDownlinkAck(ctx, event); err != nil {
+			h.logger.Warn("downlink ack publish failed", "error", err, "devEui", devEUI)
+		}
+	}
+
+	h.logger.Info(
+		"downlink ack",
+		"devEui", devEUI,
+		"acknowledged", msg.Acknowledged,
+		"fCntDown", msg.FCntDown,
+		"tenantId", tenantID,
+	)
+}
+
 func (h *Handler) handleGatewayStats(ctx context.Context, payload []byte) {
 	var msg gatewayStatsMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
@@ -242,6 +312,20 @@ type gatewayStatsMessage struct {
 	} `json:"stats"`
 }
 
+type downlinkAckMessage struct {
+	Time        string `json:"time"`
+	QueueItemID string `json:"queueItemId"`
+	Acknowledged bool  `json:"acknowledged"`
+	FCntDown    int64  `json:"fCntDown"`
+	FPort       int    `json:"fPort"`
+	Data        string `json:"data"`
+	DeviceInfo  struct {
+		DevEUI        string `json:"devEui"`
+		ApplicationID string `json:"applicationId"`
+		TenantID      string `json:"tenantId"`
+	} `json:"deviceInfo"`
+}
+
 type UplinkRow struct {
 	Time          time.Time
 	TenantID      *uuid.UUID
@@ -279,4 +363,16 @@ type UplinkEvent struct {
 	FPort         int       `json:"fPort"`
 	FCnt          int64     `json:"fCnt"`
 	Data          string    `json:"data,omitempty"`
+}
+
+type DownlinkAckEvent struct {
+	Time          time.Time `json:"time"`
+	TenantID      string    `json:"tenantId,omitempty"`
+	DevEUI        string    `json:"devEui"`
+	ApplicationID string    `json:"applicationId,omitempty"`
+	QueueItemID   string    `json:"queueItemId,omitempty"`
+	Acknowledged  bool      `json:"acknowledged"`
+	FCntDown      int64     `json:"fCntDown,omitempty"`
+	FPort         int       `json:"fPort,omitempty"`
+	PayloadHex    string    `json:"payloadHex,omitempty"`
 }

@@ -157,7 +157,7 @@ services:
         condition: service_started
     environment:
       MQTT_BROKER_URL: tcp://mosquitto:1883
-      MQTT_TOPICS: application/+/device/+/event/up,eu868/gateway/+/event/stats
+      MQTT_TOPICS: application/+/device/+/event/up,application/+/device/+/event/ack,eu868/gateway/+/event/stats
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
       NATS_URL: nats://nats:4222
       LORAWAN_REGION: eu868

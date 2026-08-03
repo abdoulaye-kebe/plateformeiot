@@ -9,6 +9,7 @@ import (
 )
 
 const SubjectUplink = "platform.events.uplink"
+const SubjectDownlinkAck = "platform.events.downlink.ack"
 
 func Connect(url string) (*nats.Conn, error) {
 	return nats.Connect(url)
@@ -24,4 +25,12 @@ func (p *Publisher) PublishUplink(ctx context.Context, event ingest.UplinkEvent)
 		return err
 	}
 	return p.nc.Publish(SubjectUplink, data)
+}
+
+func (p *Publisher) PublishDownlinkAck(ctx context.Context, event ingest.DownlinkAckEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return p.nc.Publish(SubjectDownlinkAck, data)
 }

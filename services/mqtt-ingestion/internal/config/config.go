@@ -20,7 +20,7 @@ type Config struct {
 }
 
 func Load() Config {
-	topics := strings.Split(env("MQTT_TOPICS", "application/+/device/+/event/up,eu868/gateway/+/event/stats"), ",")
+	topics := strings.Split(env("MQTT_TOPICS", "application/+/device/+/event/up,application/+/device/+/event/ack,eu868/gateway/+/event/stats"), ",")
 	return Config{
 		MQTTBrokerURL: env("MQTT_BROKER_URL", "tcp://mosquitto:1883"),
 		MQTTClientID:  env("MQTT_CLIENT_ID", "platform-mqtt-ingestion"),

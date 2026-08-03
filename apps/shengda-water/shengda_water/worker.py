@@ -121,6 +121,29 @@ def _resolve_event_tenant(event: dict[str, Any]) -> str | None:
     return None
 
 
+async def handle_downlink_ack_event(event: dict[str, Any]) -> None:
+    dev_eui = (event.get("devEui") or "").lower()
+    if not dev_eui:
+        return
+
+    tenant_id = _resolve_event_tenant(event)
+    payload_hex = event.get("payloadHex") or ""
+    f_cnt_down = event.get("fCntDown")
+    acknowledged = event.get("acknowledged", True)
+
+    if not acknowledged:
+        logger.warning("downlink nack devEui=%s fCntDown=%s", dev_eui, f_cnt_down)
+        return
+
+    if store.acknowledge_command(
+        dev_eui,
+        tenant_id=tenant_id,
+        payload_hex=payload_hex or None,
+        f_cnt_down=int(f_cnt_down) if f_cnt_down is not None else None,
+    ):
+        logger.info("downlink acknowledged devEui=%s fCntDown=%s", dev_eui, f_cnt_down)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     nc = NATS()
@@ -133,8 +156,16 @@ async def lifespan(app: FastAPI):
         except Exception as exc:  # noqa: BLE001
             logger.warning("nats handler error: %s", exc)
 
+    async def on_downlink_ack(msg):
+        try:
+            event = json.loads(msg.data.decode())
+            await handle_downlink_ack_event(event)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("downlink ack handler error: %s", exc)
+
     await nc.subscribe("platform.events.uplink", cb=on_uplink)
-    logger.info("shengda-water subscribed platform.events.uplink")
+    await nc.subscribe("platform.events.downlink.ack", cb=on_downlink_ack)
+    logger.info("shengda-water subscribed platform.events.uplink + downlink.ack")
     app.state.nats = nc
     yield
     await nc.drain()

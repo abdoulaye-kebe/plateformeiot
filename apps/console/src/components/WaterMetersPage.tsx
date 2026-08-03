@@ -33,8 +33,40 @@ type CommandRow = {
   command_type: string;
   status: string;
   created_at: string;
+  sent_at?: string;
+  ack_at?: string;
+  payload_hex?: string;
   detail?: string;
 };
+
+type QueueItem = {
+  fPort?: number;
+  confirmed?: boolean;
+  data?: string;
+  isPending?: boolean;
+};
+
+function b64ToHex(b64: string): string {
+  try {
+    const bin = atob(b64);
+    return [...bin].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+  } catch {
+    return b64;
+  }
+}
+
+function commandStatusLabel(c: CommandRow): { text: string; className: string } {
+  if (c.status === "acknowledged") {
+    return { text: "acknowledged", className: "text-emerald-700 font-medium" };
+  }
+  if (c.status === "sent") {
+    return { text: "sent (en attente ACK device)", className: "text-amber-600" };
+  }
+  if (c.status === "failed") {
+    return { text: "failed", className: "text-red-600" };
+  }
+  return { text: c.status, className: "text-gray-500" };
+}
 
 type IntervalUnit = "s" | "min" | "h";
 
@@ -78,6 +110,8 @@ export default function WaterMetersPage() {
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("h");
   const [reportHour, setReportHour] = useState("0");
   const [intervalErr, setIntervalErr] = useState("");
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [queueCount, setQueueCount] = useState(0);
 
   const loadMeters = useCallback(async () => {
     setLoadError("");
@@ -102,12 +136,15 @@ export default function WaterMetersPage() {
 
   const loadDetails = useCallback(async (devEui: string) => {
     if (!devEui) return;
-    const [r, c] = await Promise.all([
+    const [r, c, q] = await Promise.all([
       apiFetch<{ result?: ReadingRow[] }>(`/api/v1/shengda/meters/${devEui}/readings?limit=20`),
       apiFetch<{ result?: CommandRow[] }>(`/api/v1/shengda/meters/${devEui}/commands?limit=10`),
+      apiFetch<{ result?: QueueItem[]; totalCount?: number }>(`/api/v1/lorawan/devices/${devEui}/downlink`),
     ]);
     setReadings(r?.result ?? []);
     setCommands(c?.result ?? []);
+    setQueueItems(q?.result ?? []);
+    setQueueCount(q?.totalCount ?? q?.result?.length ?? 0);
   }, []);
 
   useEffect(() => {
@@ -115,7 +152,10 @@ export default function WaterMetersPage() {
   }, [loadMeters]);
 
   useEffect(() => {
-    if (activeDevEui) loadDetails(activeDevEui);
+    if (!activeDevEui) return;
+    loadDetails(activeDevEui);
+    const t = setInterval(() => loadDetails(activeDevEui), 15_000);
+    return () => clearInterval(t);
   }, [activeDevEui, loadDetails]);
 
   async function sendCommand(
@@ -466,23 +506,68 @@ export default function WaterMetersPage() {
           >
             <p className="mb-4 text-xs text-gray-500">
               Downlink port 2, confirmé — hex ouvert <code className="font-mono">261F0045</code>, fermé{" "}
-              <code className="font-mono">261F0146</code>. Le device doit être connecté au réseau.
+              <code className="font-mono">261F0146</code>. Le device Class A doit envoyer un uplink pour recevoir le downlink.
+              {" "}
+              <Link href={`/devices/${activeDevEui}`} className="text-brand hover:underline">
+                Queue ChirpStack détaillée →
+              </Link>
             </p>
+
+            <div className="mb-4 rounded-lg border border-gray-200 bg-neutral-50 px-3 py-2 text-xs text-gray-700">
+              <p className="font-medium text-gray-900">État downlink ChirpStack</p>
+              {queueCount === 0 ? (
+                <p className="mt-1">
+                  Queue vide — la dernière commande a été transmise (ou le device n&apos;a pas encore ouvert de fenêtre RX).
+                </p>
+              ) : (
+                <p className="mt-1">
+                  {queueCount} commande(s) en attente du prochain uplink Class A.
+                </p>
+              )}
+              {queueItems.length > 0 && (
+                <ul className="mt-2 space-y-1 font-mono">
+                  {queueItems.map((item, i) => (
+                    <li key={i}>
+                      port {item.fPort ?? "?"} · {item.confirmed ? "confirmé" : "non confirmé"} ·{" "}
+                      {item.data ? b64ToHex(item.data) : "—"} · pending={item.isPending ? "oui" : "non"}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {commands.length === 0 ? (
               <EmptyState message="Aucune commande envoyée." />
             ) : (
               <ul className="space-y-2 text-sm">
-                {commands.map((c) => (
-                  <li key={c.id} className="flex justify-between rounded border border-gray-100 px-3 py-2">
-                    <span>
-                      {c.command_type}{" "}
-                      <span className="text-xs text-gray-500">{new Date(c.created_at).toLocaleString("fr-FR")}</span>
-                    </span>
-                    <span className={c.status === "sent" ? "text-emerald-600" : c.status === "failed" ? "text-red-600" : "text-gray-500"}>
-                      {c.status}
-                    </span>
+                {commands.map((c) => {
+                  const st = commandStatusLabel(c);
+                  return (
+                  <li key={c.id} className="rounded border border-gray-100 px-3 py-2">
+                    <div className="flex justify-between gap-2">
+                      <span>
+                        {c.command_type}{" "}
+                        <span className="text-xs text-gray-500">{new Date(c.created_at).toLocaleString("fr-FR")}</span>
+                      </span>
+                      <span className={st.className}>{st.text}</span>
+                    </div>
+                    {c.payload_hex && (
+                      <p className="mt-1 font-mono text-[10px] text-gray-500">{c.payload_hex}</p>
+                    )}
+                    {c.ack_at && (
+                      <p className="mt-1 text-xs text-emerald-700">
+                        ACK device · {new Date(c.ack_at).toLocaleString("fr-FR")}
+                        {c.detail ? ` · ${c.detail}` : ""}
+                      </p>
+                    )}
+                    {c.status === "sent" && !c.ack_at && queueCount === 0 && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Transmis — en attente de confirmation device (événement MQTT ack).
+                      </p>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </Section>

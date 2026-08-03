@@ -320,19 +320,78 @@ class ShengdaStore:
                     UPDATE shengda_downlink_commands
                     SET status = %s,
                         sent_at = CASE WHEN %s = 'sent' THEN NOW() ELSE sent_at END,
+                        ack_at = CASE WHEN %s = 'acknowledged' THEN NOW() ELSE ack_at END,
                         detail = COALESCE(%s, detail)
                     WHERE id = %s::uuid
                     """,
-                    (status, status, detail, str(command_id)),
+                    (status, status, status, detail, str(command_id)),
                 )
             conn.commit()
+
+    def acknowledge_command(
+        self,
+        dev_eui: str,
+        *,
+        tenant_id: str | None = None,
+        payload_hex: str | None = None,
+        f_cnt_down: int | None = None,
+        detail: str | None = None,
+    ) -> bool:
+        dev_eui = dev_eui.lower()
+        detail_parts = []
+        if f_cnt_down is not None:
+            detail_parts.append(f"fCntDown={f_cnt_down}")
+        if detail:
+            detail_parts.append(detail)
+        detail_text = "; ".join(detail_parts) if detail_parts else None
+
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                if payload_hex:
+                    cur.execute(
+                        """
+                        UPDATE shengda_downlink_commands
+                        SET status = 'acknowledged', ack_at = NOW(),
+                            detail = COALESCE(%s, detail)
+                        WHERE id = (
+                            SELECT id FROM shengda_downlink_commands
+                            WHERE dev_eui = %s AND status = 'sent'
+                              AND lower(payload_hex) = lower(%s)
+                              AND (%s::uuid IS NULL OR tenant_id = %s::uuid)
+                            ORDER BY sent_at DESC NULLS LAST, created_at DESC
+                            LIMIT 1
+                        )
+                        RETURNING id
+                        """,
+                        (detail_text, dev_eui, payload_hex, tenant_id, tenant_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE shengda_downlink_commands
+                        SET status = 'acknowledged', ack_at = NOW(),
+                            detail = COALESCE(%s, detail)
+                        WHERE id = (
+                            SELECT id FROM shengda_downlink_commands
+                            WHERE dev_eui = %s AND status = 'sent'
+                              AND (%s::uuid IS NULL OR tenant_id = %s::uuid)
+                            ORDER BY sent_at DESC NULLS LAST, created_at DESC
+                            LIMIT 1
+                        )
+                        RETURNING id
+                        """,
+                        (detail_text, dev_eui, tenant_id, tenant_id),
+                    )
+                updated = cur.fetchone() is not None
+            conn.commit()
+        return updated
 
     def list_commands(self, tenant_id: str, dev_eui: str, limit: int = 20) -> list[dict[str, Any]]:
         with psycopg.connect(self.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, command_type, payload_hex, status, created_at, sent_at, detail
+                    SELECT id, command_type, payload_hex, status, created_at, sent_at, ack_at, detail
                     FROM shengda_downlink_commands
                     WHERE tenant_id = %s::uuid AND dev_eui = %s
                     ORDER BY created_at DESC
