@@ -7,7 +7,7 @@ import (
 )
 
 // NormalizePayloadData convertit le champ ChirpStack "data" (base64 ou hex) en hex minuscule.
-func NormalizePayloadData(data string) (hex string, size int, ok bool) {
+func NormalizePayloadData(data string) (payloadHex string, size int, ok bool) {
 	data = strings.TrimSpace(data)
 	if data == "" {
 		return "", 0, false
