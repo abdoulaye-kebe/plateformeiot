@@ -199,6 +199,8 @@ services:
       context: ./services/connector-mcp-worker
       dockerfile: Dockerfile
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       platform-postgres:
         condition: service_healthy
