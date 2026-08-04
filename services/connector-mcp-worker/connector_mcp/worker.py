@@ -116,7 +116,11 @@ async def test_connector(body: dict[str, Any]) -> dict[str, Any]:
             "dr": 5,
             "fPort": 1,
             "fCnt": 42,
-            "data": "0102ab",
+            "object": {
+                "volumeM3": 12.345,
+                "batteryV": 3.6,
+                "valveOpen": True,
+            },
             "time": "2026-01-01T00:00:00Z",
         }
     )

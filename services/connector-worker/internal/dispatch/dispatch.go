@@ -15,20 +15,25 @@ import (
 )
 
 type UplinkEvent struct {
-	Time          time.Time `json:"time"`
-	TenantID      string    `json:"tenantId,omitempty"`
-	DevEUI        string    `json:"devEui"`
-	ApplicationID string    `json:"applicationId"`
-	GatewayID     string    `json:"gatewayId"`
-	RSSI          int       `json:"rssi"`
-	SNR           float64   `json:"snr"`
-	DR            int       `json:"dr"`
-	FPort         int       `json:"fPort"`
-	FCnt          int64     `json:"fCnt"`
-	Data          string    `json:"data,omitempty"`
+	Time          time.Time       `json:"time"`
+	TenantID      string          `json:"tenantId,omitempty"`
+	DevEUI        string          `json:"devEui"`
+	ApplicationID string          `json:"applicationId"`
+	GatewayID     string          `json:"gatewayId"`
+	RSSI          int             `json:"rssi"`
+	SNR           float64         `json:"snr"`
+	DR            int             `json:"dr"`
+	FPort         int             `json:"fPort"`
+	FCnt          int64           `json:"fCnt"`
+	Data          string          `json:"data,omitempty"`
+	Object        json.RawMessage `json:"object,omitempty"`
 }
 
 func BuildPayload(event UplinkEvent) map[string]any {
+	decoded := map[string]any{}
+	if len(event.Object) > 0 {
+		_ = json.Unmarshal(event.Object, &decoded)
+	}
 	return map[string]any{
 		"event":    "uplink",
 		"tenantId": event.TenantID,
@@ -42,11 +47,9 @@ func BuildPayload(event UplinkEvent) map[string]any {
 			"snr":  event.SNR,
 			"dr":   event.DR,
 		},
-		"payload": map[string]any{
-			"fPort": event.FPort,
-			"fCnt":  event.FCnt,
-			"hex":   event.Data,
-		},
+		"fPort":     event.FPort,
+		"fCnt":      event.FCnt,
+		"decoded":   decoded,
 		"gatewayId": event.GatewayID,
 	}
 }

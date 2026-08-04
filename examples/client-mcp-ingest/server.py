@@ -33,13 +33,14 @@ async def ingest_lorawan_uplink(event: dict[str, Any], eventJson: str = "") -> d
     dev_eui = ""
     if isinstance(event.get("device"), dict):
         dev_eui = str(event["device"].get("devEui") or "")
-    payload = event.get("payload") or {}
+    decoded = event.get("decoded") or {}
     logger.info(
-        "uplink devEui=%s fPort=%s fCnt=%s gateway=%s",
+        "uplink devEui=%s fPort=%s fCnt=%s gateway=%s decoded=%s",
         dev_eui,
-        payload.get("fPort"),
-        payload.get("fCnt"),
+        event.get("fPort"),
+        event.get("fCnt"),
         event.get("gatewayId"),
+        decoded,
     )
     # TODO: persister en base, publier sur une queue interne, etc.
     return {
@@ -47,7 +48,7 @@ async def ingest_lorawan_uplink(event: dict[str, Any], eventJson: str = "") -> d
         "devEui": dev_eui,
         "tenantId": event.get("tenantId"),
         "event": event.get("event", "uplink"),
-        "receivedBytes": len(str(payload.get("hex") or "")),
+        "decoded": decoded,
     }
 
 

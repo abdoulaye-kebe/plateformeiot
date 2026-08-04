@@ -1,9 +1,24 @@
-"""Construction payload uplink standard (aligné connector-worker Go)."""
+"""Construction payload uplink standard — données décodées ChirpStack (object)."""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
+
+
+def parse_decoded(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except json.JSONDecodeError:
+            return {}
+    return {}
 
 
 def build_uplink_payload(event: dict[str, Any]) -> dict[str, Any]:
@@ -21,10 +36,8 @@ def build_uplink_payload(event: dict[str, Any]) -> dict[str, Any]:
             "snr": event.get("snr"),
             "dr": event.get("dr"),
         },
-        "payload": {
-            "fPort": event.get("fPort"),
-            "fCnt": event.get("fCnt"),
-            "hex": event.get("data") or "",
-        },
+        "fPort": event.get("fPort"),
+        "fCnt": event.get("fCnt"),
         "gatewayId": event.get("gatewayId") or "",
+        "decoded": parse_decoded(event.get("object")),
     }

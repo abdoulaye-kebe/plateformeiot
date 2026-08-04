@@ -307,10 +307,12 @@ func sampleUplinkEvent(tenantID string) map[string]any {
 			"snr":  9.5,
 			"dr":   5,
 		},
-		"payload": map[string]any{
-			"fPort": 1,
-			"fCnt":  42,
-			"hex":   "0102ab",
+		"fPort": 1,
+		"fCnt":  42,
+		"decoded": map[string]any{
+			"volumeM3":  12.345,
+			"batteryV":  3.6,
+			"valveOpen": true,
 		},
 		"gatewayId": "aabbccddeeff0011",
 	}
