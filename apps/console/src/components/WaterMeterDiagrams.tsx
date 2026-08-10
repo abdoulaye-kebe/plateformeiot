@@ -19,8 +19,17 @@ const ORANGE_LIGHT = "#FFF4EB";
 const GRAY = "#525252";
 const GRAY_LIGHT = "#F4F4F4";
 
+function asNumber(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Schéma physique : tuyau → compteur → vanne */
 function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" | "valveOpen" | "batteryV">) {
+  const idx = asNumber(indexM3);
+  const batt = asNumber(batteryV);
   const valveColor = valveOpen === false ? "#DC2626" : valveOpen === true ? "#059669" : GRAY;
   const valveLabel = valveOpen === false ? "FERMÉE" : valveOpen === true ? "OUVERTE" : "?";
 
@@ -42,7 +51,7 @@ function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" 
           INDEX
         </text>
         <text x={145} y={68} textAnchor="middle" fontSize={10} fontWeight="bold" fill={ORANGE}>
-          {indexM3 != null ? `${indexM3}` : "—"}
+          {idx != null ? `${idx}` : "—"}
         </text>
         <text x={145} y={78} textAnchor="middle" fontSize={7} fill={GRAY}>
           m³
@@ -81,13 +90,13 @@ function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" 
         <rect
           x={364}
           y={40}
-          width={Math.min(40, batteryV != null ? ((batteryV - 2.5) / 1.5) * 40 : 20)}
+          width={Math.min(40, batt != null ? ((batt - 2.5) / 1.5) * 40 : 20)}
           height={16}
           rx={2}
-          fill={batteryV != null && batteryV < 3.2 ? "#F59E0B" : "#059669"}
+          fill={batt != null && batt < 3.2 ? "#F59E0B" : "#059669"}
         />
         <text x={384} y={72} textAnchor="middle" fontSize={8} fill={GRAY}>
-          {batteryV != null ? `${batteryV} V` : "Batt."}
+          {batt != null ? `${batt} V` : "Batt."}
         </text>
 
         {/* Impulsions */}

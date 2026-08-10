@@ -152,13 +152,13 @@ export default function WaterMetersPage() {
       apiFetch<{ result?: ReadingRow[] }>(`/api/v1/shengda/meters/${devEui}/readings?limit=20`),
       apiFetch<{ result?: CommandRow[] }>(`/api/v1/shengda/meters/${devEui}/commands?limit=10`),
       apiFetch<{ result?: QueueItem[]; totalCount?: number }>(`/api/v1/lorawan/devices/${devEui}/downlink`),
-      apiFetch<{ result?: LeakRow[] }>(`/api/v1/shengda/leaks?status=active&devEui=${devEui}&limit=20`),
+      apiFetch<{ result?: LeakRow[] }>(`/api/v1/shengda/leaks?status=active&devEui=${encodeURIComponent(devEui)}&limit=20`),
     ]);
     setReadings(r?.result ?? []);
     setCommands(c?.result ?? []);
     setQueueItems(q?.result ?? []);
     setQueueCount(q?.totalCount ?? q?.result?.length ?? 0);
-    setLeaks(l?.result ?? []);
+    setLeaks(Array.isArray(l?.result) ? l.result : []);
   }, []);
 
   useEffect(() => {

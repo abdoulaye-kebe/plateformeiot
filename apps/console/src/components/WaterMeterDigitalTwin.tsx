@@ -49,13 +49,23 @@ type Props = {
 const ORANGE = "#FF7900";
 const ORANGE_LIGHT = "#FFF4EB";
 
+function asNumber(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function computeFlowM3h(readings: TwinReading[]): number | null {
-  const withIndex = readings.filter((r) => r.index_m3 != null);
+  const withIndex = readings
+    .map((r) => ({ ...r, index_m3: asNumber(r.index_m3) }))
+    .filter((r) => r.index_m3 != null);
   if (withIndex.length < 2) return null;
   const a = withIndex[1];
   const b = withIndex[0];
   const t0 = new Date(a.time).getTime();
   const t1 = new Date(b.time).getTime();
+  if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
   const hours = (t1 - t0) / 3_600_000;
   if (hours <= 0 || hours > 48) return null;
   const delta = (b.index_m3 as number) - (a.index_m3 as number);
@@ -267,10 +277,11 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
   const events = useMemo(() => {
     const items: { time: string; kind: string; label: string; detail?: string }[] = [];
     for (const r of readings.slice(0, 8)) {
+      const idx = asNumber(r.index_m3);
       items.push({
         time: r.time,
         kind: "reading",
-        label: `Relevé · ${r.index_m3 != null ? `${r.index_m3} m³` : "—"}`,
+        label: `Relevé · ${idx != null ? `${idx} m³` : "—"}`,
         detail: [r.trigger_label, r.valve_open != null ? (r.valve_open ? "vanne ouverte" : "vanne fermée") : null]
           .filter(Boolean)
           .join(" · "),
@@ -316,9 +327,9 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
 export default function WaterMeterDigitalTwin({ meter, readings = [], commands = [], leaks = [] }: Props) {
   const devEui = meter?.dev_eui ?? "";
   const valveOpen = meter?.valve_open ?? readings[0]?.valve_open;
-  const indexM3 = meter?.last_index_m3 ?? readings[0]?.index_m3;
-  const indexLiters = meter?.last_index_liters;
-  const batteryV = meter?.battery_v ?? readings[0]?.battery_v;
+  const indexM3 = asNumber(meter?.last_index_m3 ?? readings[0]?.index_m3);
+  const indexLiters = asNumber(meter?.last_index_liters);
+  const batteryV = asNumber(meter?.battery_v ?? readings[0]?.battery_v);
   const lastAt = meter?.last_reading_at ?? readings[0]?.time;
 
   const flowM3h = useMemo(() => computeFlowM3h(readings), [readings]);
@@ -393,7 +404,7 @@ export default function WaterMeterDigitalTwin({ meter, readings = [], commands =
             {leaks.map((l) => (
               <li key={l.id} className="text-sm text-red-900">
                 <span className="font-medium capitalize">{l.severity}</span> — {l.title}
-                {l.flow_m3h != null ? ` (${formatFlow(l.flow_m3h)})` : ""}
+                {l.flow_m3h != null ? ` (${formatFlow(asNumber(l.flow_m3h) ?? null)})` : ""}
               </li>
             ))}
           </ul>
