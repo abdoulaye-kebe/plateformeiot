@@ -342,6 +342,16 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
   );
 }
 
+type TwinMode = "simulation" | "live";
+
+function simCommandLabel(action: string): string {
+  if (action === "open") return "Ouvrir vanne";
+  if (action === "close") return "Fermer vanne";
+  if (action === "read") return "Télérelevé";
+  if (action === "dredge") return "Débourrer";
+  return action;
+}
+
 export default function WaterMeterDigitalTwin({
   meter,
   readings,
@@ -358,20 +368,36 @@ export default function WaterMeterDigitalTwin({
   const safeLeaks = Array.isArray(leaks) ? leaks : [];
 
   const [syncLabel, setSyncLabel] = useState("");
+  const [mode, setMode] = useState<TwinMode>("simulation");
+  const [simValveOpen, setSimValveOpen] = useState<boolean | null>(null);
+  const [simCommands, setSimCommands] = useState<TwinCommand[]>([]);
+  const [simBusy, setSimBusy] = useState("");
+  const [simNote, setSimNote] = useState("");
 
   const devEui = meter?.dev_eui ?? "";
-  const valveOpen = meter?.valve_open ?? safeReadings[0]?.valve_open;
+  const realValveOpen = meter?.valve_open ?? safeReadings[0]?.valve_open;
+  const valveOpen = mode === "simulation" && simValveOpen != null ? simValveOpen : realValveOpen;
   const indexM3 = asNumber(meter?.last_index_m3 ?? safeReadings[0]?.index_m3);
   const indexLiters = asNumber(meter?.last_index_liters);
   const batteryV = asNumber(meter?.battery_v ?? safeReadings[0]?.battery_v);
   const lastAt = meter?.last_reading_at ?? safeReadings[0]?.time;
 
+  const displayedCommands = mode === "simulation" ? simCommands : safeCommands;
+  const activeBusy = mode === "simulation" ? simBusy : busy;
+
   const flowM3h = useMemo(() => computeFlowM3h(safeReadings), [safeReadings]);
-  const health = healthStatus(meter, safeLeaks, flowM3h, valveOpen, network);
+  const health = healthStatus(meter, safeLeaks, flowM3h, valveOpen, mode === "live" ? network : undefined);
   const isFlowing = valveOpen !== false && flowM3h != null && flowM3h > 0.001;
-  const linkActive = network?.deviceStatus !== "offline" && network?.gatewayState !== "OFFLINE";
+  const linkActive =
+    mode === "simulation" || (network?.deviceStatus !== "offline" && network?.gatewayState !== "OFFLINE");
 
   const healthColor = health.tone === "crit" ? "#DC2626" : health.tone === "warn" ? "#D97706" : "#059669";
+
+  useEffect(() => {
+    setSimValveOpen(null);
+    setSimCommands([]);
+    setSimNote("");
+  }, [devEui]);
 
   useEffect(() => {
     if (!lastAt) {
@@ -387,8 +413,36 @@ export default function WaterMeterDigitalTwin({
   }, [lastAt]);
 
   async function cmd(action: string) {
-    if (!write || !onCommand || busy) return;
+    if (!write || activeBusy) return;
+
+    if (mode === "simulation") {
+      setSimBusy(action);
+      setSimNote("");
+      await new Promise((r) => setTimeout(r, 400));
+      if (action === "open") setSimValveOpen(true);
+      if (action === "close") setSimValveOpen(false);
+      setSimCommands((prev) => [
+        {
+          id: `sim-${Date.now()}`,
+          command_type: simCommandLabel(action),
+          status: "simulated",
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      setSimNote(`Simulation : « ${simCommandLabel(action)} » — aucun downlink envoyé au réseau.`);
+      setSimBusy("");
+      return;
+    }
+
+    if (!onCommand) return;
     await onCommand(action);
+  }
+
+  function resetSimulation() {
+    setSimValveOpen(null);
+    setSimCommands([]);
+    setSimNote("");
   }
 
   return (
@@ -397,15 +451,59 @@ export default function WaterMeterDigitalTwin({
         <div>
           <h2 className="text-base font-semibold text-gray-900">Jumeau numérique réseau</h2>
           <p className="text-sm text-gray-500">
-            Capteur ↔ Gateway ↔ Plateforme — contrôle bidirectionnel{syncLabel}
+            Capteur ↔ Gateway ↔ Plateforme
+            {mode === "simulation" ? " — mode simulation (local)" : " — contrôle live"}
+            {syncLabel}
           </p>
         </div>
-        <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: healthColor }}>
-          {health.label}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {write && (
+            <div className="flex rounded-lg border border-gray-300 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setMode("simulation")}
+                className={`rounded-md px-3 py-1.5 font-medium ${
+                  mode === "simulation" ? "bg-sky-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Simulation
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("live")}
+                className={`rounded-md px-3 py-1.5 font-medium ${
+                  mode === "live" ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Live réseau
+              </button>
+            </div>
+          )}
+          <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: healthColor }}>
+            {health.label}
+          </span>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border-2 border-brand bg-gradient-to-b from-neutral-900 to-neutral-950 p-4 sm:p-6">
+      {mode === "simulation" && (
+        <p className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <strong>Mode simulation</strong> — les actions modifient uniquement le jumeau à l&apos;écran. Aucune commande
+          n&apos;est envoyée à ChirpStack ni au compteur physique. Passez en <strong>Live réseau</strong> pour piloter le
+          device réel.
+        </p>
+      )}
+
+      {mode === "live" && write && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Mode live</strong> — chaque action envoie un downlink confirmé (port 2) vers le compteur via la gateway.
+        </p>
+      )}
+
+      <div
+        className={`overflow-hidden rounded-2xl border-2 bg-gradient-to-b from-neutral-900 to-neutral-950 p-4 sm:p-6 ${
+          mode === "simulation" ? "border-sky-500" : "border-brand"
+        }`}
+      >
         <NetworkTopology
           devEui={devEui}
           indexM3={indexM3}
@@ -418,20 +516,45 @@ export default function WaterMeterDigitalTwin({
           linkActive={linkActive}
         />
 
-        {/* Actions downlink → device */}
-        {write && onCommand ? (
+        {mode === "simulation" && (
+          <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-widest text-sky-400">
+            ● Jumeau virtuel — réseau non impacté
+          </p>
+        )}
+
+        {/* Actions */}
+        {write ? (
           <div className="mt-4 border-t border-neutral-700 pt-4">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-brand">Agir sur le jumeau → push device</p>
-            <div className="flex flex-wrap gap-2">
-              <ActionButton label="Ouvrir vanne" tone="green" loading={busy === "open"} disabled={!!busy} onClick={() => cmd("open")} />
-              <ActionButton label="Fermer vanne" tone="red" loading={busy === "close"} disabled={!!busy} onClick={() => cmd("close")} />
-              <ActionButton label="Télérelevé" tone="brand" loading={busy === "read"} disabled={!!busy} onClick={() => cmd("read")} />
-              <ActionButton label="Débourrer" tone="neutral" loading={busy === "dredge"} disabled={!!busy} onClick={() => cmd("dredge")} />
-            </div>
-            <p className="mt-2 text-[11px] text-neutral-500">
-              Downlink port 2 confirmé · Class A — transmis au prochain uplink
-              {queueCount > 0 ? ` · ${queueCount} commande(s) en file ChirpStack` : " · file vide"}
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-brand">
+              {mode === "simulation" ? "Simuler une action sur le jumeau" : "Agir sur le jumeau → push device"}
             </p>
+            <div className="flex flex-wrap gap-2">
+              <ActionButton label="Ouvrir vanne" tone="green" loading={activeBusy === "open"} disabled={!!activeBusy} onClick={() => cmd("open")} />
+              <ActionButton label="Fermer vanne" tone="red" loading={activeBusy === "close"} disabled={!!activeBusy} onClick={() => cmd("close")} />
+              <ActionButton label="Télérelevé" tone="brand" loading={activeBusy === "read"} disabled={!!activeBusy} onClick={() => cmd("read")} />
+              <ActionButton label="Débourrer" tone="neutral" loading={activeBusy === "dredge"} disabled={!!activeBusy} onClick={() => cmd("dredge")} />
+              {mode === "simulation" && (simValveOpen != null || simCommands.length > 0) && (
+                <button
+                  type="button"
+                  onClick={resetSimulation}
+                  className="rounded-lg border border-neutral-500 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+            {mode === "simulation" ? (
+              <p className="mt-2 text-[11px] text-sky-300/80">
+                État vanne simulé
+                {simValveOpen == null ? " — aligné sur le device réel" : simValveOpen ? " — ouverte (virtuel)" : " — fermée (virtuel)"}
+                {simNote ? ` · ${simNote}` : ""}
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-neutral-500">
+                Downlink port 2 confirmé · Class A — transmis au prochain uplink
+                {queueCount > 0 ? ` · ${queueCount} commande(s) en file ChirpStack` : " · file vide"}
+              </p>
+            )}
           </div>
         ) : (
           <p className="mt-4 text-xs text-neutral-500">Mode lecture seule — connectez-vous en operator/admin pour piloter le capteur.</p>
@@ -486,7 +609,7 @@ export default function WaterMeterDigitalTwin({
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Flux réseau (uplink / downlink)</p>
-          <EventTimeline readings={safeReadings} commands={safeCommands} />
+          <EventTimeline readings={safeReadings} commands={displayedCommands} />
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Chaîne jumeau → physique</p>
