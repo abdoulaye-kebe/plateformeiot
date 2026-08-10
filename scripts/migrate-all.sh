@@ -33,5 +33,6 @@ run "Connecteur MCP" "$ROOT/infra/platform/postgres/012_mcp_connector.sql"
 run "Shengda water" "$ROOT/infra/platform/postgres/013_shengda_water.sql"
 run "Decoders tenant" "$ROOT/infra/platform/postgres/014_tenant_decoders.sql"
 run "Payload decoded JSON" "$ROOT/infra/platform/postgres/015_payload_decoded_json.sql"
+run "Water leak detection" "$ROOT/infra/platform/postgres/016_water_leak_detection.sql"
 
 echo "✓ Toutes les migrations appliquées"

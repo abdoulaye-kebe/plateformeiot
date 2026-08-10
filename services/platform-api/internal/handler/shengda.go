@@ -137,6 +137,28 @@ func (d Deps) getShengdaCodec(w http.ResponseWriter, r *http.Request) {
 	d.proxyShengda(w, r, http.MethodGet, "/codec", nil)
 }
 
+func (d Deps) listWaterLeaks(w http.ResponseWriter, r *http.Request) {
+	d.proxyShengda(w, r, http.MethodGet, "/leaks", nil)
+}
+
+func (d Deps) getWaterLeakSummary(w http.ResponseWriter, r *http.Request) {
+	d.proxyShengda(w, r, http.MethodGet, "/leaks/summary", nil)
+}
+
+func (d Deps) resolveWaterLeak(w http.ResponseWriter, r *http.Request) {
+	if !d.canWriteLoRaWAN(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	eventID := chi.URLParam(r, "id")
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	d.proxyShengda(w, r, http.MethodPatch, "/leaks/"+eventID, bytes.NewReader(raw))
+}
+
 type applyShengdaCodecRequest struct {
 	DeviceProfileID string `json:"deviceProfileId"`
 	Create          bool   `json:"create"`

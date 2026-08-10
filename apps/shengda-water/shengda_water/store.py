@@ -89,6 +89,7 @@ class ShengdaStore:
         f_cnt: int | None,
         f_port: int | None,
         event_time: datetime | None = None,
+        flow_m3h: float | None = None,
     ) -> None:
         with psycopg.connect(self.database_url) as conn:
             with conn.cursor() as cur:
@@ -99,13 +100,13 @@ class ShengdaStore:
                         pulse_count, battery_v, valve_open, valve_fault,
                         battery_low, magnetic_attack, trigger_source, trigger_label,
                         status_word_1, status_word_2, packet_sequence,
-                        raw_hex, f_cnt, f_port, decoded
+                        raw_hex, f_cnt, f_port, decoded, flow_m3h
                     ) VALUES (
                         COALESCE(%s, NOW()), %s::uuid, %s, %s, %s,
                         %s, %s, %s, %s,
                         %s, %s, %s, %s,
                         %s, %s, %s,
-                        %s, %s, %s, %s::jsonb
+                        %s, %s, %s, %s::jsonb, %s
                     )
                     """,
                     (
@@ -129,6 +130,7 @@ class ShengdaStore:
                         f_cnt,
                         f_port,
                         psycopg.types.json.Json(reading.to_dict()),
+                        flow_m3h,
                     ),
                 )
             conn.commit()
@@ -288,6 +290,193 @@ class ShengdaStore:
                 )
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+
+    def get_previous_reading_with_index(
+        self, tenant_id: str, dev_eui: str, before_time: datetime | None = None
+    ) -> dict[str, Any] | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                if before_time:
+                    cur.execute(
+                        """
+                        SELECT time, index_m3, valve_open
+                        FROM shengda_readings
+                        WHERE tenant_id = %s::uuid AND dev_eui = %s
+                          AND index_m3 IS NOT NULL AND time < %s
+                        ORDER BY time DESC
+                        LIMIT 1
+                        """,
+                        (tenant_id, dev_eui.lower(), before_time),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT time, index_m3, valve_open
+                        FROM shengda_readings
+                        WHERE tenant_id = %s::uuid AND dev_eui = %s
+                          AND index_m3 IS NOT NULL
+                        ORDER BY time DESC
+                        OFFSET 1 LIMIT 1
+                        """,
+                        (tenant_id, dev_eui.lower()),
+                    )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                cols = [d[0] for d in cur.description]
+                return dict(zip(cols, row, strict=True))
+
+    def get_leak_settings(self, tenant_id: str) -> dict[str, Any] | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT enabled, flow_threshold_m3h, night_flow_threshold_m3h,
+                           night_start_hour, night_end_hour, min_interval_minutes
+                    FROM water_leak_settings
+                    WHERE tenant_id = %s::uuid
+                    """,
+                    (tenant_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                cols = [d[0] for d in cur.description]
+                return dict(zip(cols, row, strict=True))
+
+    def upsert_leak_event(
+        self,
+        tenant_id: str,
+        dev_eui: str,
+        leak_type: str,
+        severity: str,
+        title: str,
+        details: dict[str, Any],
+        *,
+        flow_m3h: float | None = None,
+        index_m3: float | None = None,
+        valve_open: bool | None = None,
+        reading_time: datetime | None = None,
+    ) -> UUID | None:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO water_leak_events (
+                        tenant_id, dev_eui, leak_type, severity, status, title,
+                        details, flow_m3h, index_m3, valve_open, reading_time, detected_at
+                    ) VALUES (
+                        %s::uuid, %s, %s, %s, 'active', %s,
+                        %s::jsonb, %s, %s, %s, %s, NOW()
+                    )
+                    ON CONFLICT (tenant_id, dev_eui, leak_type)
+                    WHERE status = 'active'
+                    DO UPDATE SET
+                        severity = EXCLUDED.severity,
+                        title = EXCLUDED.title,
+                        details = EXCLUDED.details,
+                        flow_m3h = EXCLUDED.flow_m3h,
+                        index_m3 = EXCLUDED.index_m3,
+                        valve_open = EXCLUDED.valve_open,
+                        reading_time = EXCLUDED.reading_time,
+                        detected_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        tenant_id,
+                        dev_eui.lower(),
+                        leak_type,
+                        severity,
+                        title,
+                        psycopg.types.json.Json(details),
+                        flow_m3h,
+                        index_m3,
+                        valve_open,
+                        reading_time,
+                    ),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return row[0] if row else None
+
+    def list_leak_events(
+        self,
+        tenant_id: str,
+        *,
+        status: str | None = None,
+        dev_eui: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        clauses = ["tenant_id = %s::uuid"]
+        params: list[Any] = [tenant_id]
+        if status:
+            clauses.append("status = %s")
+            params.append(status)
+        if dev_eui:
+            clauses.append("dev_eui = %s")
+            params.append(dev_eui.lower())
+        params.append(limit)
+        where = " AND ".join(clauses)
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT id, dev_eui, leak_type, severity, status, title, details,
+                           flow_m3h, index_m3, valve_open, reading_time, detected_at,
+                           resolved_at, resolved_by
+                    FROM water_leak_events
+                    WHERE {where}
+                    ORDER BY detected_at DESC
+                    LIMIT %s
+                    """,
+                    params,
+                )
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+
+    def get_leak_summary(self, tenant_id: str) -> dict[str, Any]:
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (WHERE status = 'active') AS active_count,
+                        COUNT(*) FILTER (WHERE status = 'active' AND severity = 'critical') AS critical_count,
+                        COUNT(*) FILTER (WHERE status = 'active' AND severity = 'warning') AS warning_count,
+                        COUNT(*) FILTER (WHERE detected_at >= NOW() - INTERVAL '24 hours') AS last_24h_count
+                    FROM water_leak_events
+                    WHERE tenant_id = %s::uuid
+                    """,
+                    (tenant_id,),
+                )
+                row = cur.fetchone()
+                cols = [d[0] for d in cur.description]
+                return dict(zip(cols, row, strict=True)) if row else {}
+
+    def resolve_leak_event(
+        self,
+        tenant_id: str,
+        event_id: str,
+        *,
+        status: str = "resolved",
+        resolved_by: str | None = None,
+    ) -> bool:
+        if status not in ("resolved", "false_positive"):
+            return False
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE water_leak_events
+                    SET status = %s, resolved_at = NOW(), resolved_by = %s
+                    WHERE id = %s::uuid AND tenant_id = %s::uuid AND status = 'active'
+                    RETURNING id
+                    """,
+                    (status, resolved_by, event_id, tenant_id),
+                )
+                updated = cur.fetchone() is not None
+            conn.commit()
+        return updated
 
     def insert_command(
         self,

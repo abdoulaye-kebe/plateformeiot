@@ -182,6 +182,9 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/decode", deps.postShengdaDecode)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/codec", deps.getShengdaCodec)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/codec/apply", deps.applyShengdaCodec)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/leaks", deps.listWaterLeaks)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/leaks/summary", deps.getWaterLeakSummary)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Patch("/leaks/{id}", deps.resolveWaterLeak)
 		})
 
 		r.Route("/decoders", func(r chi.Router) {

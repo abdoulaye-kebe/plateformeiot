@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const APPS_NAV = [
   { href: "/apps", label: "Catalogue", exact: true },
   { href: "/apps/shengda/water-meters", label: "Shengda — Eau / Vannes" },
+  { href: "/apps/shengda/leak-detection", label: "Détection de fuites" },
 ];
 
 export default function BusinessAppsShell({ children }: { children: React.ReactNode }) {

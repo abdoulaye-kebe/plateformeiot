@@ -18,6 +18,7 @@ from nats.aio.client import Client as NATS
 from pydantic import BaseModel, Field
 
 from shengda_water.chirpstack import ChirpStackClient
+from shengda_water.leak_detector import LeakSettings, detect_leaks
 from shengda_water.protocol.decoder import decode_payload
 from shengda_water.protocol.encoder import (
     read_meter_info_command,
@@ -83,6 +84,20 @@ async def handle_uplink_event(event: dict[str, Any]) -> None:
     event_time = _parse_event_time(event.get("time"))
 
     store.upsert_meter_from_reading(tenant_id, dev_eui, application_id, reading)
+
+    settings = LeakSettings.from_row(store.get_leak_settings(tenant_id))
+    previous = store.get_previous_reading_with_index(tenant_id, dev_eui, event_time)
+    prev_index = float(previous["index_m3"]) if previous and previous.get("index_m3") is not None else None
+    prev_time = previous.get("time") if previous else None
+
+    leak_candidates, flow_m3h = detect_leaks(
+        reading,
+        settings=settings,
+        event_time=event_time,
+        previous_index_m3=prev_index,
+        previous_time=prev_time,
+    )
+
     store.insert_reading(
         tenant_id,
         dev_eui,
@@ -90,13 +105,38 @@ async def handle_uplink_event(event: dict[str, Any]) -> None:
         f_cnt=f_cnt,
         f_port=f_port,
         event_time=event_time,
+        flow_m3h=flow_m3h,
     )
+
+    for leak in leak_candidates:
+        store.upsert_leak_event(
+            tenant_id,
+            dev_eui,
+            leak.leak_type,
+            leak.severity,
+            leak.title,
+            leak.details,
+            flow_m3h=leak.flow_m3h,
+            index_m3=reading.index_m3,
+            valve_open=reading.valve_open,
+            reading_time=event_time,
+        )
+        logger.warning(
+            "leak detected devEui=%s type=%s severity=%s flowM3h=%s",
+            dev_eui,
+            leak.leak_type,
+            leak.severity,
+            leak.flow_m3h,
+        )
+
     logger.info(
-        "reading devEui=%s indexM3=%s valveOpen=%s batteryV=%s",
+        "reading devEui=%s indexM3=%s valveOpen=%s batteryV=%s flowM3h=%s leaks=%s",
         dev_eui,
         reading.index_m3,
         reading.valve_open,
         reading.battery_v,
+        flow_m3h,
+        len(leak_candidates),
     )
 
 
@@ -509,6 +549,51 @@ async def send_command(
 async def decode(body: DecodeBody) -> dict[str, Any]:
     reading = decode_payload(body.hex)
     return reading.to_dict()
+
+
+class ResolveLeakBody(BaseModel):
+    status: str = Field("resolved", description="resolved | false_positive")
+    resolvedBy: str | None = None
+
+
+@app.get("/leaks")
+async def list_leaks(
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+    status: str | None = Query(None, description="active | resolved | false_positive"),
+    devEui: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    events = store.list_leak_events(tenant, status=status, dev_eui=devEui, limit=limit)
+    summary = store.get_leak_summary(tenant)
+    return {"result": events, "totalCount": len(events), "summary": summary}
+
+
+@app.get("/leaks/summary")
+async def leak_summary(
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    return store.get_leak_summary(tenant)
+
+
+@app.patch("/leaks/{event_id}")
+async def resolve_leak(
+    event_id: str,
+    body: ResolveLeakBody,
+    tenantId: str | None = Query(None),
+    chirpstackTenantId: str | None = Query(None),
+) -> dict[str, Any]:
+    tenant = _resolve_tenant_id(tenantId, chirpstackTenantId)
+    status = body.status.lower().strip()
+    if status not in ("resolved", "false_positive"):
+        raise HTTPException(status_code=400, detail="status must be resolved or false_positive")
+    ok = store.resolve_leak_event(tenant, event_id, status=status, resolved_by=body.resolvedBy)
+    if not ok:
+        raise HTTPException(status_code=404, detail="active leak event not found")
+    return {"status": "ok", "id": event_id, "resolution": status}
 
 
 def main() -> None:

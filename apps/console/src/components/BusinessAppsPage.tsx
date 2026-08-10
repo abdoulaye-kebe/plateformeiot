@@ -12,6 +12,13 @@ const BUSINESS_APPS = [
     href: "/apps/shengda/water-meters",
     vendor: "Shengda",
   },
+  {
+    id: "water-leak-detection",
+    name: "Détection de fuites",
+    description: "Alertes fuites d'eau — alarmes compteur, débit calculé, consommation nocturne et vanne fermée.",
+    href: "/apps/shengda/leak-detection",
+    vendor: "Shengda",
+  },
 ];
 
 export default function BusinessAppsPage() {
