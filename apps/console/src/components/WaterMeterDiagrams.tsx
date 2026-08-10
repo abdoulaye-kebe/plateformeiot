@@ -114,6 +114,7 @@ function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" 
 /** Graphique évolution index */
 function IndexChart({ readings }: { readings: ReadingPoint[] }) {
   const points = [...readings]
+    .map((r) => ({ ...r, index_m3: asNumber(r.index_m3) }))
     .filter((r) => r.index_m3 != null)
     .reverse()
     .slice(-12);

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, RoleBanner, Section, EmptyState } from "@/components/ui";
-import WaterMeterDigitalTwin from "@/components/WaterMeterDigitalTwin";
+import WaterMeterDigitalTwin, { type NetworkContext } from "@/components/WaterMeterDigitalTwin";
 import WaterMeterDiagrams from "@/components/WaterMeterDiagrams";
 import ClientOnly from "@/components/ClientOnly";
 
@@ -125,6 +125,15 @@ export default function WaterMetersPage() {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queueCount, setQueueCount] = useState(0);
   const [leaks, setLeaks] = useState<LeakRow[]>([]);
+  const [network, setNetwork] = useState<NetworkContext>({});
+
+  function deviceStatusFromLastSeen(iso?: string): string {
+    if (!iso) return "offline";
+    const since = Date.now() - new Date(iso).getTime();
+    if (since <= 3_600_000) return "online";
+    if (since <= 7 * 86_400_000) return "sleeping";
+    return "offline";
+  }
 
   const loadMeters = useCallback(async () => {
     setLoadError("");
@@ -149,17 +158,50 @@ export default function WaterMetersPage() {
 
   const loadDetails = useCallback(async (devEui: string) => {
     if (!devEui) return;
-    const [r, c, q, l] = await Promise.all([
+    const [r, c, q, l, radio, msgs, linkMetrics] = await Promise.all([
       apiFetch<{ result?: ReadingRow[] }>(`/api/v1/shengda/meters/${devEui}/readings?limit=20`),
       apiFetch<{ result?: CommandRow[] }>(`/api/v1/shengda/meters/${devEui}/commands?limit=10`),
       apiFetch<{ result?: QueueItem[]; totalCount?: number }>(`/api/v1/lorawan/devices/${devEui}/downlink`),
       apiFetch<{ result?: LeakRow[] }>(`/api/v1/shengda/leaks?status=active&devEui=${encodeURIComponent(devEui)}&limit=20`),
+      apiFetch<{ avgRssi?: number; avgSnr?: number; lastDr?: number; uplinkCount?: number }>(
+        `/api/v1/analytics/devices/${devEui}/radio?hours=24`
+      ),
+      apiFetch<{ result?: { gatewayId?: string }[] }>(
+        `/api/v1/data/messages?devEui=${encodeURIComponent(devEui)}&limit=1`
+      ),
+      apiFetch<{ points?: { rssi?: number; snr?: number }[] }>(
+        `/api/v1/analytics/devices/${devEui}/link-metrics?range=24h`
+      ),
     ]);
-    setReadings(Array.isArray(r?.result) ? r.result : []);
+    const readingRows = Array.isArray(r?.result) ? r.result : [];
+    setReadings(readingRows);
     setCommands(Array.isArray(c?.result) ? c.result : []);
     setQueueItems(Array.isArray(q?.result) ? q.result : []);
     setQueueCount(q?.totalCount ?? (Array.isArray(q?.result) ? q.result.length : 0));
     setLeaks(Array.isArray(l?.result) ? l.result : []);
+
+    const lastPoint = linkMetrics?.points?.length ? linkMetrics.points[linkMetrics.points.length - 1] : undefined;
+    const gatewayId = msgs?.result?.[0]?.gatewayId?.toLowerCase();
+    const lastSeen = readingRows[0]?.time;
+    const net: NetworkContext = {
+      gatewayId,
+      rssi: lastPoint?.rssi ?? (radio?.avgRssi != null ? Math.round(radio.avgRssi) : undefined),
+      snr: lastPoint?.snr ?? radio?.avgSnr,
+      dr: radio?.lastDr,
+      deviceStatus: deviceStatusFromLastSeen(lastSeen),
+      uplinkCount24h: radio?.uplinkCount,
+    };
+
+    if (gatewayId) {
+      const gw = await apiFetch<{ gateway?: { name?: string }; state?: string; lastSeenAt?: string }>(
+        `/api/v1/lorawan/gateways/${gatewayId}`
+      );
+      net.gatewayName = gw?.gateway?.name;
+      net.gatewayState = gw?.state;
+      net.gatewayLastSeen = gw?.lastSeenAt;
+    }
+
+    setNetwork(net);
   }, []);
 
   useEffect(() => {
@@ -330,6 +372,11 @@ export default function WaterMetersPage() {
               readings={readings}
               commands={commands}
               leaks={leaks}
+              network={network}
+              write={write}
+              busy={busy}
+              queueCount={queueCount}
+              onCommand={(action) => sendCommand(action)}
             />
           </ClientOnly>
           <ClientOnly>
@@ -523,50 +570,10 @@ export default function WaterMetersPage() {
             </Section>
           )}
 
-          <Section
-            title={`Contrôle vanne — ${activeDevEui}`}
-            action={
-              write ? (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => sendCommand("open")}
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    Ouvrir
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => sendCommand("close")}
-                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                  >
-                    Fermer
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => sendCommand("dredge")}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Débourrer
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => sendCommand("read")}
-                    className="rounded-lg border border-brand px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light disabled:opacity-50"
-                  >
-                    Télérelevé
-                  </button>
-                </div>
-              ) : null
-            }
-          >
+          <Section title={`Historique commandes downlink — ${activeDevEui}`}>
             <p className="mb-4 text-xs text-gray-500">
-              Downlink port 2, confirmé — hex ouvert <code className="font-mono">261F0045</code>, fermé{" "}
-              <code className="font-mono">261F0146</code>. Le device Class A doit envoyer un uplink pour recevoir le downlink.
+              Les actions vanne sont sur le jumeau numérique ci-dessus. Downlink port 2 confirmé — hex ouvert{" "}
+              <code className="font-mono">261F0045</code>, fermé <code className="font-mono">261F0146</code>.
               {" "}
               <Link href={`/devices/${activeDevEui}`} className="text-brand hover:underline">
                 Queue ChirpStack détaillée →

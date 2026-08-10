@@ -39,15 +39,31 @@ export type TwinMeter = {
   last_reading_at?: string;
 };
 
+export type NetworkContext = {
+  gatewayId?: string;
+  gatewayName?: string;
+  gatewayState?: string;
+  gatewayLastSeen?: string;
+  rssi?: number;
+  snr?: number;
+  dr?: number;
+  deviceStatus?: string;
+  uplinkCount24h?: number;
+};
+
 type Props = {
   meter?: TwinMeter;
   readings?: TwinReading[];
   commands?: TwinCommand[];
   leaks?: TwinLeak[];
+  network?: NetworkContext;
+  write?: boolean;
+  busy?: string;
+  queueCount?: number;
+  onCommand?: (action: string) => void | Promise<void>;
 };
 
 const ORANGE = "#FF7900";
-const ORANGE_LIGHT = "#FFF4EB";
 
 function asNumber(value: unknown): number | undefined {
   if (value == null || value === "") return undefined;
@@ -77,11 +93,14 @@ function healthStatus(
   meter: TwinMeter | undefined,
   leaks: TwinLeak[],
   flowM3h: number | null,
-  valveOpen: boolean | null | undefined
+  valveOpen: boolean | null | undefined,
+  network?: NetworkContext
 ): { label: string; tone: "ok" | "warn" | "crit" } {
   if (leaks.some((l) => l.severity === "critical")) return { label: "Alerte critique", tone: "crit" };
   if (meter?.magnetic_attack) return { label: "Attaque magnétique", tone: "crit" };
   if (valveOpen === false && flowM3h != null && flowM3h > 0.02) return { label: "Fuite probable", tone: "crit" };
+  if (network?.deviceStatus === "offline") return { label: "Capteur offline", tone: "crit" };
+  if (network?.gatewayState === "OFFLINE") return { label: "Gateway offline", tone: "warn" };
   if (leaks.length > 0 || meter?.battery_low) return { label: "Attention requise", tone: "warn" };
   return { label: "Nominal", tone: "ok" };
 }
@@ -94,166 +113,187 @@ function formatFlow(m3h: number | null): string {
   return `${m3h.toFixed(3)} m³/h`;
 }
 
-function TwinCanvas({
+function rssiQuality(rssi?: number): { label: string; color: string; pct: number } {
+  if (rssi == null) return { label: "—", color: "#94A3B8", pct: 0 };
+  if (rssi >= -90) return { label: "Excellent", color: "#059669", pct: 95 };
+  if (rssi >= -105) return { label: "Bon", color: "#10B981", pct: 75 };
+  if (rssi >= -115) return { label: "Faible", color: "#F59E0B", pct: 45 };
+  return { label: "Critique", color: "#DC2626", pct: 20 };
+}
+
+function deviceStatusLabel(status?: string): string {
+  if (status === "online") return "En ligne";
+  if (status === "sleeping") return "Veille";
+  if (status === "offline") return "Hors ligne";
+  return status ?? "—";
+}
+
+function NetworkTopology({
+  devEui,
   indexM3,
   indexLiters,
   valveOpen,
   batteryV,
   flowM3h,
   isFlowing,
-  health,
-  devEui,
+  network,
+  linkActive,
 }: {
+  devEui: string;
   indexM3?: number;
   indexLiters?: number;
   valveOpen?: boolean | null;
   batteryV?: number;
   flowM3h: number | null;
   isFlowing: boolean;
-  health: { label: string; tone: "ok" | "warn" | "crit" };
-  devEui: string;
+  network?: NetworkContext;
+  linkActive: boolean;
 }) {
   const valveColor = valveOpen === false ? "#DC2626" : valveOpen === true ? "#059669" : "#94A3B8";
-  const healthColor = health.tone === "crit" ? "#DC2626" : health.tone === "warn" ? "#D97706" : "#059669";
-  const battPct = batteryV != null ? Math.min(100, Math.max(0, ((batteryV - 2.5) / 1.5) * 100)) : 0;
+  const batt = asNumber(batteryV);
+  const rssi = rssiQuality(network?.rssi);
+  const gwOnline = network?.gatewayState === "ONLINE";
+  const gwColor = gwOnline ? "#059669" : network?.gatewayState === "OFFLINE" ? "#DC2626" : "#F59E0B";
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border-2 border-brand bg-gradient-to-b from-neutral-900 to-neutral-950 p-4 sm:p-6">
-      <style>{`
-        .twin-pulse {
-          animation: twin-pulse 2s ease-in-out infinite;
-        }
-        @keyframes twin-pulse {
-          0%, 100% { opacity: 0.35; }
-          50% { opacity: 1; }
-        }
-      `}</style>
-
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-brand">Jumeau numérique</p>
-          <p className="font-mono text-xs text-neutral-400">{devEui}</p>
-        </div>
-        <span
-          className="rounded-full px-3 py-1 text-xs font-bold text-white"
-          style={{ background: healthColor }}
-        >
-          {health.label}
-        </span>
-      </div>
-
-      <svg viewBox="0 0 400 200" className="mx-auto w-full max-w-2xl" role="img" aria-label="Jumeau numérique compteur eau">
-        {/* LoRa module */}
-        <rect x={165} y={8} width={70} height={28} rx={6} fill="#1F2937" stroke={ORANGE} strokeWidth={1.5} />
-        <path d="M200 8 V2 M190 8 Q200 0 210 8" stroke={ORANGE} strokeWidth={2} fill="none" className="twin-pulse" />
-        <text x={200} y={26} textAnchor="middle" fontSize={8} fill={ORANGE} fontWeight="bold">
-          LoRaWAN
+    <svg viewBox="0 0 720 220" className="mx-auto w-full" role="img" aria-label="Topologie réseau jumeau numérique">
+      {/* ── Compteur capteur ── */}
+      <g transform="translate(20, 30)">
+        <rect width={180} height={150} rx={12} fill="#1F2937" stroke={ORANGE} strokeWidth={2} />
+        <text x={90} y={22} textAnchor="middle" fontSize={10} fill={ORANGE} fontWeight="bold">
+          CAPTEUR · Shengda
         </text>
-
-        {/* Tuyau principal */}
-        <rect x={20} y={118} width={360} height={24} rx={12} fill="#1E293B" stroke="#334155" strokeWidth={2} />
-        <rect x={24} y={122} width={352} height={16} rx={8} fill="#0F172A" />
-
-        {/* Flux animé (positions fixes — compatible React SSR) */}
-        {isFlowing &&
-          [80, 160, 240].map((cx) => (
-            <circle key={cx} cx={cx} cy={130} r={4} fill="#38BDF8" opacity={0.85} />
-          ))}
-
-        {/* Compteur — corps */}
-        <rect x={130} y={88} width={140} height={84} rx={12} fill={ORANGE_LIGHT} stroke={ORANGE} strokeWidth={2.5} />
-        <rect x={145} y={102} width={110} height={36} rx={4} fill="#0F172A" stroke="#334155" />
-        <text x={200} y={116} textAnchor="middle" fontSize={8} fill="#64748B">
-          INDEX NUMÉRIQUE
+        <text x={90} y={36} textAnchor="middle" fontSize={8} fill="#94A3B8" fontFamily="monospace">
+          {devEui.slice(0, 8)}…
         </text>
-        <text x={200} y={132} textAnchor="middle" fontSize={16} fontWeight="bold" fill={ORANGE} fontFamily="monospace">
+        <rect x={30} y={48} width={120} height={32} rx={4} fill="#0F172A" stroke="#334155" />
+        <text x={90} y={62} textAnchor="middle" fontSize={8} fill="#64748B">
+          INDEX m³
+        </text>
+        <text x={90} y={76} textAnchor="middle" fontSize={14} fontWeight="bold" fill={ORANGE} fontFamily="monospace">
           {indexM3 != null ? indexM3.toFixed(3) : "—"}
         </text>
-        <text x={200} y={144} textAnchor="middle" fontSize={8} fill="#94A3B8">
-          m³ {indexLiters != null ? `· ${indexLiters.toLocaleString("fr-FR")} L` : ""}
-        </text>
-
-        {/* Roue à impulsions */}
-        <circle cx={200} cy={168} r={14} fill="white" stroke={ORANGE} strokeWidth={2} />
-        {[0, 45, 90, 135].map((deg) => (
-          <line
-            key={deg}
-            x1={200}
-            y1={168}
-            x2={200 + 10 * Math.cos((deg * Math.PI) / 180)}
-            y2={168 + 10 * Math.sin((deg * Math.PI) / 180)}
-            stroke={ORANGE}
-            strokeWidth={2}
-          />
-        ))}
-
-        {/* Vanne */}
-        <g transform="translate(300, 100)">
-          <rect width={52} height={52} rx={8} fill="#1F2937" stroke={valveColor} strokeWidth={2.5} />
+        <g transform="translate(40, 92)">
+          <rect width={40} height={40} rx={6} fill="#0F172A" stroke={valveColor} strokeWidth={2} />
           {valveOpen === false ? (
             <>
-              <line x1={12} y1={12} x2={40} y2={40} stroke={valveColor} strokeWidth={3} strokeLinecap="round" />
-              <line x1={40} y1={12} x2={12} y2={40} stroke={valveColor} strokeWidth={3} strokeLinecap="round" />
+              <line x1={8} y1={8} x2={32} y2={32} stroke={valveColor} strokeWidth={2.5} />
+              <line x1={32} y1={8} x2={8} y2={32} stroke={valveColor} strokeWidth={2.5} />
             </>
           ) : (
             <>
-              <line x1={10} y1={26} x2={42} y2={26} stroke={valveColor} strokeWidth={3} strokeLinecap="round" />
-              <line x1={26} y1={10} x2={26} y2={42} stroke={valveColor} strokeWidth={3} strokeLinecap="round" />
+              <line x1={6} y1={20} x2={34} y2={20} stroke={valveColor} strokeWidth={2.5} />
+              <line x1={20} y1={6} x2={20} y2={34} stroke={valveColor} strokeWidth={2.5} />
             </>
           )}
-          <text x={26} y={62} textAnchor="middle" fontSize={8} fontWeight="bold" fill={valveColor}>
+          <text x={20} y={52} textAnchor="middle" fontSize={7} fill={valveColor}>
             VANNE
           </text>
         </g>
-
-        {/* Entrée / sortie labels */}
-        <text x={40} y={112} fontSize={9} fill="#94A3B8">
-          Entrée réseau
+        <text x={120} y={115} textAnchor="middle" fontSize={8} fill="#94A3B8">
+          {batt != null ? `${batt} V` : "Batt."}
         </text>
-        <text x={340} y={112} textAnchor="end" fontSize={9} fill="#94A3B8">
-          Sortie
-        </text>
-
-        {/* Débit live */}
-        <rect x={20} y={168} width={90} height={24} rx={6} fill="#1F2937" stroke="#334155" />
-        <text x={65} y={184} textAnchor="middle" fontSize={9} fill="#38BDF8" fontWeight="bold">
+        <text x={90} y={138} textAnchor="middle" fontSize={8} fill="#38BDF8">
           {formatFlow(flowM3h)}
         </text>
+        {indexLiters != null && (
+          <text x={90} y={152} textAnchor="middle" fontSize={7} fill="#64748B">
+            {indexLiters.toLocaleString("fr-FR")} imp.
+          </text>
+        )}
+      </g>
 
-        {/* Batterie */}
-        <rect x={290} y={168} width={90} height={24} rx={6} fill="#1F2937" stroke="#334155" />
-        <rect x={296} y={174} width={60} height={12} rx={2} fill="#0F172A" />
-        <rect
-          x={296}
-          y={174}
-          width={(60 * battPct) / 100}
-          height={12}
-          rx={2}
-          fill={batteryV != null && batteryV < 3.2 ? "#F59E0B" : "#059669"}
-        />
-        <text x={335} y={184} textAnchor="middle" fontSize={8} fill="#E2E8F0">
-          {batteryV != null ? `${batteryV} V` : "Batt."}
+      {/* ── Lien LoRaWAN ── */}
+      <g transform="translate(230, 50)">
+        <text x={120} y={12} textAnchor="middle" fontSize={9} fill="#94A3B8" fontWeight="bold">
+          LIEN LoRaWAN EU868
         </text>
-      </svg>
+        <line x1={0} y1={80} x2={240} y2={80} stroke="#334155" strokeWidth={3} strokeDasharray={linkActive ? "0" : "6 4"} />
+        {linkActive &&
+          [0, 1, 2].map((i) => (
+            <circle key={i} cx={40 + i * 70} cy={80} r={5} fill={rssi.color} opacity={0.9} />
+          ))}
+        <rect x={60} y={100} width={120} height={50} rx={8} fill="#0F172A" stroke={rssi.color} strokeWidth={1.5} />
+        <text x={120} y={118} textAnchor="middle" fontSize={9} fill="#E2E8F0">
+          RSSI {network?.rssi != null ? `${network.rssi} dBm` : "—"}
+        </text>
+        <text x={120} y={132} textAnchor="middle" fontSize={9} fill="#E2E8F0">
+          SNR {network?.snr != null ? `${Number(network.snr).toFixed(1)} dB` : "—"}
+        </text>
+        <text x={120} y={144} textAnchor="middle" fontSize={8} fill={rssi.color}>
+          {rssi.label} · DR{network?.dr ?? "?"}
+        </text>
+        <rect x={60} y={158} width={120} height={6} rx={3} fill="#1E293B" />
+        <rect x={60} y={158} width={(120 * rssi.pct) / 100} height={6} rx={3} fill={rssi.color} />
+      </g>
 
-      <p className="mt-2 text-center text-[11px] text-neutral-500">
-        {isFlowing
-          ? "Écoulement détecté — consommation en cours"
-          : valveOpen === false
-            ? "Vanne fermée — pas d'écoulement attendu"
-            : "En attente de consommation mesurable entre deux relevés"}
-      </p>
-    </div>
+      {/* ── Gateway ── */}
+      <g transform="translate(500, 25)">
+        <rect width={200} height={160} rx={12} fill="#1F2937" stroke={gwColor} strokeWidth={2} />
+        <text x={100} y={22} textAnchor="middle" fontSize={10} fill={gwColor} fontWeight="bold">
+          GATEWAY
+        </text>
+        <path d="M100 40 L100 28 M88 40 Q100 32 112 40" stroke={gwColor} strokeWidth={2} fill="none" />
+        <rect x={70} y={48} width={60} height={40} rx={6} fill="#0F172A" stroke={gwColor} strokeWidth={1.5} />
+        <rect x={82} y={58} width={8} height={20} fill={gwColor} opacity={0.6} />
+        <rect x={96} y={52} width={8} height={26} fill={gwColor} opacity={0.8} />
+        <rect x={110} y={60} width={8} height={18} fill={gwColor} opacity={0.5} />
+        <text x={100} y={104} textAnchor="middle" fontSize={9} fill="#E2E8F0" fontWeight="bold">
+          {network?.gatewayState ?? "—"}
+        </text>
+        <text x={100} y={118} textAnchor="middle" fontSize={8} fill="#94A3B8" fontFamily="monospace">
+          {(network?.gatewayId ?? "—").slice(0, 12)}
+        </text>
+        <text x={100} y={132} textAnchor="middle" fontSize={7} fill="#64748B">
+          {network?.gatewayName ?? "Passerelle LoRaWAN"}
+        </text>
+        {network?.gatewayLastSeen && (
+          <text x={100} y={146} textAnchor="middle" fontSize={7} fill="#64748B">
+            vu {new Date(network.gatewayLastSeen).toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          </text>
+        )}
+      </g>
+
+      {/* Flux eau (bas) */}
+      {isFlowing && (
+        <text x={110} y={210} fontSize={8} fill="#38BDF8">
+          ● Écoulement détecté
+        </text>
+      )}
+    </svg>
   );
 }
 
-function MetricTile({ label, value, sub, alert }: { label: string; value: string; sub?: string; alert?: boolean }) {
+function ActionButton({
+  label,
+  tone,
+  disabled,
+  loading,
+  onClick,
+}: {
+  label: string;
+  tone: "green" | "red" | "neutral" | "brand";
+  disabled?: boolean;
+  loading?: boolean;
+  onClick: () => void;
+}) {
+  const cls =
+    tone === "green"
+      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+      : tone === "red"
+        ? "bg-red-600 hover:bg-red-700 text-white"
+        : tone === "brand"
+          ? "border-2 border-brand text-brand hover:bg-brand-light"
+          : "border border-gray-400 text-gray-700 hover:bg-gray-100";
   return (
-    <div className={`rounded-xl border p-3 ${alert ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold tabular-nums ${alert ? "text-red-700" : "text-gray-900"}`}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[10px] text-gray-500">{sub}</p> : null}
-    </div>
+    <button
+      type="button"
+      disabled={disabled || loading}
+      onClick={onClick}
+      className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 ${cls}`}
+    >
+      {loading ? "Envoi…" : label}
+    </button>
   );
 }
 
@@ -262,41 +302,33 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
   const safeCommands = Array.isArray(commands) ? commands : [];
   const events = useMemo(() => {
     const items: { time: string; kind: string; label: string; detail?: string }[] = [];
-    for (const r of safeReadings.slice(0, 8)) {
+    for (const r of safeReadings.slice(0, 6)) {
       const idx = asNumber(r.index_m3);
       items.push({
         time: r.time,
         kind: "reading",
-        label: `Relevé · ${idx != null ? `${idx} m³` : "—"}`,
-        detail: [r.trigger_label, r.valve_open != null ? (r.valve_open ? "vanne ouverte" : "vanne fermée") : null]
-          .filter(Boolean)
-          .join(" · "),
+        label: `Uplink · ${idx != null ? `${idx} m³` : "—"}`,
+        detail: r.trigger_label,
       });
     }
-    for (const c of safeCommands.slice(0, 5)) {
+    for (const c of safeCommands.slice(0, 4)) {
       items.push({
         time: c.created_at,
         kind: "command",
-        label: `Commande · ${c.command_type}`,
+        label: `Downlink · ${c.command_type}`,
         detail: c.status,
       });
     }
-    return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 10);
+    return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 8);
   }, [safeReadings, safeCommands]);
 
-  if (events.length === 0) {
-    return <p className="text-xs text-gray-500">Aucun événement récent pour alimenter le jumeau.</p>;
-  }
+  if (events.length === 0) return <p className="text-xs text-gray-500">Aucun événement réseau récent.</p>;
 
   return (
     <ul className="space-y-2">
       {events.map((e, i) => (
         <li key={`${e.time}-${i}`} className="flex gap-3 text-xs">
-          <span
-            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-              e.kind === "command" ? "bg-brand" : "bg-emerald-500"
-            }`}
-          />
+          <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${e.kind === "command" ? "bg-brand" : "bg-sky-400"}`} />
           <div>
             <p className="font-medium text-gray-800">{e.label}</p>
             <p className="text-gray-500">
@@ -315,12 +347,17 @@ export default function WaterMeterDigitalTwin({
   readings,
   commands,
   leaks,
+  network,
+  write,
+  busy,
+  queueCount = 0,
+  onCommand,
 }: Props) {
   const safeReadings = Array.isArray(readings) ? readings : [];
   const safeCommands = Array.isArray(commands) ? commands : [];
   const safeLeaks = Array.isArray(leaks) ? leaks : [];
 
-  const [syncLabel, setSyncLabel] = useState<string>("");
+  const [syncLabel, setSyncLabel] = useState("");
 
   const devEui = meter?.dev_eui ?? "";
   const valveOpen = meter?.valve_open ?? safeReadings[0]?.valve_open;
@@ -330,8 +367,11 @@ export default function WaterMeterDigitalTwin({
   const lastAt = meter?.last_reading_at ?? safeReadings[0]?.time;
 
   const flowM3h = useMemo(() => computeFlowM3h(safeReadings), [safeReadings]);
-  const health = healthStatus(meter, safeLeaks, flowM3h, valveOpen);
+  const health = healthStatus(meter, safeLeaks, flowM3h, valveOpen, network);
   const isFlowing = valveOpen !== false && flowM3h != null && flowM3h > 0.001;
+  const linkActive = network?.deviceStatus !== "offline" && network?.gatewayState !== "OFFLINE";
+
+  const healthColor = health.tone === "crit" ? "#DC2626" : health.tone === "warn" ? "#D97706" : "#059669";
 
   useEffect(() => {
     if (!lastAt) {
@@ -346,96 +386,120 @@ export default function WaterMeterDigitalTwin({
     );
   }, [lastAt]);
 
+  async function cmd(action: string) {
+    if (!write || !onCommand || busy) return;
+    await onCommand(action);
+  }
+
   return (
     <section className="mb-8 space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Jumeau numérique</h2>
+          <h2 className="text-base font-semibold text-gray-900">Jumeau numérique réseau</h2>
           <p className="text-sm text-gray-500">
-            Réplique virtuelle synchronisée avec le compteur physique
-            {syncLabel}
+            Capteur ↔ Gateway ↔ Plateforme — contrôle bidirectionnel{syncLabel}
           </p>
         </div>
-        {safeLeaks.length > 0 && (
-          <Link href="/apps/shengda/leak-detection" className="text-xs font-medium text-red-600 hover:underline">
-            {safeLeaks.length} alerte(s) fuite active(s) →
-          </Link>
+        <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: healthColor }}>
+          {health.label}
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border-2 border-brand bg-gradient-to-b from-neutral-900 to-neutral-950 p-4 sm:p-6">
+        <NetworkTopology
+          devEui={devEui}
+          indexM3={indexM3}
+          indexLiters={indexLiters}
+          valveOpen={valveOpen}
+          batteryV={batteryV}
+          flowM3h={flowM3h}
+          isFlowing={isFlowing}
+          network={network}
+          linkActive={linkActive}
+        />
+
+        {/* Actions downlink → device */}
+        {write && onCommand ? (
+          <div className="mt-4 border-t border-neutral-700 pt-4">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-brand">Agir sur le jumeau → push device</p>
+            <div className="flex flex-wrap gap-2">
+              <ActionButton label="Ouvrir vanne" tone="green" loading={busy === "open"} disabled={!!busy} onClick={() => cmd("open")} />
+              <ActionButton label="Fermer vanne" tone="red" loading={busy === "close"} disabled={!!busy} onClick={() => cmd("close")} />
+              <ActionButton label="Télérelevé" tone="brand" loading={busy === "read"} disabled={!!busy} onClick={() => cmd("read")} />
+              <ActionButton label="Débourrer" tone="neutral" loading={busy === "dredge"} disabled={!!busy} onClick={() => cmd("dredge")} />
+            </div>
+            <p className="mt-2 text-[11px] text-neutral-500">
+              Downlink port 2 confirmé · Class A — transmis au prochain uplink
+              {queueCount > 0 ? ` · ${queueCount} commande(s) en file ChirpStack` : " · file vide"}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-neutral-500">Mode lecture seule — connectez-vous en operator/admin pour piloter le capteur.</p>
         )}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <TwinCanvas
-            devEui={devEui}
-            indexM3={indexM3}
-            indexLiters={indexLiters}
-            valveOpen={valveOpen}
-            batteryV={batteryV}
-            flowM3h={flowM3h}
-            isFlowing={isFlowing}
-            health={health}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 content-start">
-          <MetricTile label="Index" value={indexM3 != null ? `${indexM3} m³` : "—"} />
-          <MetricTile
-            label="Vanne"
-            value={valveOpen == null ? "—" : valveOpen ? "Ouverte" : "Fermée"}
-            alert={valveOpen === false && isFlowing}
-          />
-          <MetricTile label="Débit estimé" value={formatFlow(flowM3h)} sub="Δindex / Δtemps" />
-          <MetricTile
-            label="Batterie"
-            value={batteryV != null ? `${batteryV} V` : "—"}
-            alert={meter?.battery_low}
-          />
-          <MetricTile
-            label="Impulsions"
-            value={indexLiters != null ? indexLiters.toLocaleString("fr-FR") : "—"}
-            sub="1 imp = 1 litre"
-          />
-          <MetricTile
-            label="Santé jumeau"
-            value={health.label}
-            alert={health.tone !== "ok"}
-          />
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        {[
+          { label: "Index", value: indexM3 != null ? `${indexM3} m³` : "—" },
+          { label: "Vanne", value: valveOpen == null ? "—" : valveOpen ? "Ouverte" : "Fermée" },
+          { label: "Capteur", value: deviceStatusLabel(network?.deviceStatus) },
+          { label: "Gateway", value: network?.gatewayState ?? "—" },
+          { label: "RSSI", value: network?.rssi != null ? `${network.rssi} dBm` : "—" },
+          { label: "Uplinks 24h", value: network?.uplinkCount24h ?? "—" },
+        ].map((m) => (
+          <div key={m.label} className="rounded-xl border border-gray-200 bg-white p-3">
+            <p className="text-[10px] font-bold uppercase text-gray-500">{m.label}</p>
+            <p className="mt-1 text-sm font-bold text-gray-900">{m.value}</p>
+          </div>
+        ))}
       </div>
+
+      {network?.gatewayId && (
+        <p className="text-xs text-gray-500">
+          Gateway :{" "}
+          <Link href={`/gateways/${network.gatewayId}`} className="font-mono text-brand hover:underline">
+            {network.gatewayId}
+          </Link>
+          {" · "}
+          <Link href={`/devices/${devEui}`} className="text-brand hover:underline">
+            Fiche device LoRaWAN →
+          </Link>
+        </p>
+      )}
 
       {safeLeaks.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-xs font-bold uppercase text-red-800">Alertes synchronisées</p>
+          <p className="text-xs font-bold uppercase text-red-800">Alertes fuites synchronisées</p>
           <ul className="mt-2 space-y-1">
             {safeLeaks.map((l, i) => (
               <li key={l.id ?? `leak-${i}`} className="text-sm text-red-900">
-                <span className="font-medium capitalize">{l.severity ?? "info"}</span> — {l.title ?? l.leak_type}
-                {l.flow_m3h != null ? ` (${formatFlow(asNumber(l.flow_m3h) ?? null)})` : ""}
+                {l.title ?? l.leak_type}
               </li>
             ))}
           </ul>
+          <Link href="/apps/shengda/leak-detection" className="mt-2 inline-block text-xs text-red-700 hover:underline">
+            Voir détection fuites →
+          </Link>
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Historique jumeau</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Flux réseau (uplink / downlink)</p>
           <EventTimeline readings={safeReadings} commands={safeCommands} />
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Correspondance physique ↔ virtuel</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Chaîne jumeau → physique</p>
           <dl className="space-y-2 text-sm">
             {[
-              ["Index m³", "Volume cumulé mesuré par impulsions"],
-              ["Vanne", "État réel du clapet sur le compteur"],
-              ["Débit estimé", "Calcul plateforme entre 2 uplinks"],
-              ["Batterie", "Tension module radio embarqué"],
-              ["LoRaWAN", "Lien radio vers la passerelle"],
-              ["Alertes fuite", "Règles shengda-water en temps réel"],
+              ["Action jumeau", "POST /shengda/meters/{devEui}/commands"],
+              ["Downlink", "ChirpStack queue port 2 → gateway → capteur"],
+              ["Uplink retour", "Capteur → gateway → mqtt-ingestion → jumeau"],
+              ["Sync jumeau", "Refresh auto 15 s + état vanne/index"],
             ].map(([k, v]) => (
               <div key={k} className="flex gap-2 border-b border-gray-100 pb-2 last:border-0">
                 <dt className="w-28 shrink-0 font-medium text-gray-800">{k}</dt>
-                <dd className="text-gray-600">{v}</dd>
+                <dd className="font-mono text-[11px] text-gray-600">{v}</dd>
               </div>
             ))}
           </dl>
