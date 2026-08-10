@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -125,6 +124,16 @@ function rssiQuality(rssi?: number): { label: string; color: string; pct: number
   return { label: "Critique", color: "#DC2626", pct: 20 };
 }
 
+function formatSnr(value: unknown): string {
+  const n = asNumber(value);
+  return n != null ? `${n.toFixed(1)} dB` : "—";
+}
+
+function formatRssi(value: unknown): string {
+  const n = asNumber(value);
+  return n != null ? `${Math.round(n)} dBm` : "—";
+}
+
 function deviceStatusLabel(status?: string): string {
   if (status === "online") return "En ligne";
   if (status === "sleeping") return "Veille";
@@ -156,7 +165,7 @@ function NetworkTopology({
   const valveColor = valveOpen === false ? "#DC2626" : valveOpen === true ? "#059669" : "#94A3B8";
   const valveLabel = valveOpen === false ? "Fermée" : valveOpen === true ? "Ouverte" : "Vanne";
   const batt = asNumber(batteryV);
-  const rssi = rssiQuality(network?.rssi);
+  const rssi = rssiQuality(asNumber(network?.rssi));
   const gwOnline = network?.gatewayState === "ONLINE";
   const gwColor = gwOnline ? "#059669" : network?.gatewayState === "OFFLINE" ? "#DC2626" : "#F59E0B";
 
@@ -171,13 +180,13 @@ function NetworkTopology({
         <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-widest text-brand">Capteur · Shengda</p>
         <div className="flex flex-1 flex-col rounded-xl border-2 p-3" style={{ borderColor: ORANGE }}>
           <div className="relative overflow-hidden rounded-lg bg-white shadow-inner">
-            <Image
+            {/* img natif : évite l'optimiseur Next.js (400 en standalone Docker) */}
+            <img
               src={METER_IMG}
               alt="Compteur d'eau LoRaWAN Shengda"
               width={400}
               height={400}
               className="mx-auto h-auto w-full max-h-[180px] object-contain p-3"
-              priority
             />
             <span
               className="absolute bottom-2 right-2 rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow"
@@ -225,12 +234,8 @@ function NetworkTopology({
           )}
         </div>
         <div className="rounded-xl border bg-neutral-900/80 p-3" style={{ borderColor: rssi.color }}>
-          <p className="text-center text-xs text-neutral-200">
-            RSSI {network?.rssi != null ? `${network.rssi} dBm` : "—"}
-          </p>
-          <p className="text-center text-xs text-neutral-200">
-            SNR {network?.snr != null ? `${Number(network.snr).toFixed(1)} dB` : "—"}
-          </p>
+          <p className="text-center text-xs text-neutral-200">RSSI {formatRssi(network?.rssi)}</p>
+          <p className="text-center text-xs text-neutral-200">SNR {formatSnr(network?.snr)}</p>
           <p className="mt-1 text-center text-[11px] font-medium" style={{ color: rssi.color }}>
             {rssi.label} · DR{network?.dr ?? "?"}
           </p>
@@ -250,7 +255,7 @@ function NetworkTopology({
         </p>
         <div className="flex flex-1 flex-col rounded-xl border-2 p-3" style={{ borderColor: gwColor }}>
           <div className="relative overflow-hidden rounded-lg bg-black">
-            <Image
+            <img
               src={GATEWAY_IMG}
               alt="Passerelle LoRaWAN"
               width={400}
@@ -583,7 +588,7 @@ export default function WaterMeterDigitalTwin({
           { label: "Vanne", value: valveOpen == null ? "—" : valveOpen ? "Ouverte" : "Fermée" },
           { label: "Capteur", value: deviceStatusLabel(network?.deviceStatus) },
           { label: "Gateway", value: network?.gatewayState ?? "—" },
-          { label: "RSSI", value: network?.rssi != null ? `${network.rssi} dBm` : "—" },
+          { label: "RSSI", value: formatRssi(network?.rssi) },
           { label: "Uplinks 24h", value: network?.uplinkCount24h ?? "—" },
         ].map((m) => (
           <div key={m.label} className="rounded-xl border border-gray-200 bg-white p-3">
