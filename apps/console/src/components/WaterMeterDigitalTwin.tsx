@@ -1,7 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+const METER_IMG = "/twin/shengda-meter.png";
+const GATEWAY_IMG = "/twin/lorawan-gateway.png";
 
 export type TwinReading = {
   time: string;
@@ -150,117 +154,129 @@ function NetworkTopology({
   linkActive: boolean;
 }) {
   const valveColor = valveOpen === false ? "#DC2626" : valveOpen === true ? "#059669" : "#94A3B8";
+  const valveLabel = valveOpen === false ? "Fermée" : valveOpen === true ? "Ouverte" : "Vanne";
   const batt = asNumber(batteryV);
   const rssi = rssiQuality(network?.rssi);
   const gwOnline = network?.gatewayState === "ONLINE";
   const gwColor = gwOnline ? "#059669" : network?.gatewayState === "OFFLINE" ? "#DC2626" : "#F59E0B";
 
   return (
-    <svg viewBox="0 0 720 220" className="mx-auto w-full" role="img" aria-label="Topologie réseau jumeau numérique">
+    <div
+      className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,260px)_minmax(0,1fr)]"
+      role="img"
+      aria-label="Topologie réseau jumeau numérique"
+    >
       {/* ── Compteur capteur ── */}
-      <g transform="translate(20, 30)">
-        <rect width={180} height={150} rx={12} fill="#1F2937" stroke={ORANGE} strokeWidth={2} />
-        <text x={90} y={22} textAnchor="middle" fontSize={10} fill={ORANGE} fontWeight="bold">
-          CAPTEUR · Shengda
-        </text>
-        <text x={90} y={36} textAnchor="middle" fontSize={8} fill="#94A3B8" fontFamily="monospace">
-          {devEui.slice(0, 8)}…
-        </text>
-        <rect x={30} y={48} width={120} height={32} rx={4} fill="#0F172A" stroke="#334155" />
-        <text x={90} y={62} textAnchor="middle" fontSize={8} fill="#64748B">
-          INDEX m³
-        </text>
-        <text x={90} y={76} textAnchor="middle" fontSize={14} fontWeight="bold" fill={ORANGE} fontFamily="monospace">
-          {indexM3 != null ? indexM3.toFixed(3) : "—"}
-        </text>
-        <g transform="translate(40, 92)">
-          <rect width={40} height={40} rx={6} fill="#0F172A" stroke={valveColor} strokeWidth={2} />
-          {valveOpen === false ? (
-            <>
-              <line x1={8} y1={8} x2={32} y2={32} stroke={valveColor} strokeWidth={2.5} />
-              <line x1={32} y1={8} x2={8} y2={32} stroke={valveColor} strokeWidth={2.5} />
-            </>
-          ) : (
-            <>
-              <line x1={6} y1={20} x2={34} y2={20} stroke={valveColor} strokeWidth={2.5} />
-              <line x1={20} y1={6} x2={20} y2={34} stroke={valveColor} strokeWidth={2.5} />
-            </>
-          )}
-          <text x={20} y={52} textAnchor="middle" fontSize={7} fill={valveColor}>
-            VANNE
-          </text>
-        </g>
-        <text x={120} y={115} textAnchor="middle" fontSize={8} fill="#94A3B8">
-          {batt != null ? `${batt} V` : "Batt."}
-        </text>
-        <text x={90} y={138} textAnchor="middle" fontSize={8} fill="#38BDF8">
-          {formatFlow(flowM3h)}
-        </text>
-        {indexLiters != null && (
-          <text x={90} y={152} textAnchor="middle" fontSize={7} fill="#64748B">
-            {indexLiters.toLocaleString("fr-FR")} imp.
-          </text>
-        )}
-      </g>
+      <div className="flex flex-col">
+        <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-widest text-brand">Capteur · Shengda</p>
+        <div className="flex flex-1 flex-col rounded-xl border-2 p-3" style={{ borderColor: ORANGE }}>
+          <div className="relative overflow-hidden rounded-lg bg-white shadow-inner">
+            <Image
+              src={METER_IMG}
+              alt="Compteur d'eau LoRaWAN Shengda"
+              width={400}
+              height={400}
+              className="mx-auto h-auto w-full max-h-[180px] object-contain p-3"
+              priority
+            />
+            <span
+              className="absolute bottom-2 right-2 rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow"
+              style={{ background: valveColor }}
+            >
+              {valveLabel}
+            </span>
+            {isFlowing && (
+              <span className="absolute left-2 top-2 rounded-full bg-sky-500/90 px-2 py-0.5 text-[9px] font-bold text-white">
+                ● Débit
+              </span>
+            )}
+          </div>
+          <div className="mt-3 space-y-1 text-center">
+            <p className="font-mono text-[9px] text-neutral-400">{devEui}</p>
+            <p className="text-2xl font-bold tabular-nums text-brand">{indexM3 != null ? `${indexM3.toFixed(3)} m³` : "—"}</p>
+            <div className="flex flex-wrap justify-center gap-3 text-[11px] text-neutral-300">
+              <span>{batt != null ? `${batt} V` : "Batt. —"}</span>
+              <span className="text-sky-300">{formatFlow(flowM3h)}</span>
+              {indexLiters != null && <span className="text-neutral-500">{indexLiters.toLocaleString("fr-FR")} imp.</span>}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Lien LoRaWAN ── */}
-      <g transform="translate(230, 50)">
-        <text x={120} y={12} textAnchor="middle" fontSize={9} fill="#94A3B8" fontWeight="bold">
-          LIEN LoRaWAN EU868
-        </text>
-        <line x1={0} y1={80} x2={240} y2={80} stroke="#334155" strokeWidth={3} strokeDasharray={linkActive ? "0" : "6 4"} />
-        {linkActive &&
-          [0, 1, 2].map((i) => (
-            <circle key={i} cx={40 + i * 70} cy={80} r={5} fill={rssi.color} opacity={0.9} />
-          ))}
-        <rect x={60} y={100} width={120} height={50} rx={8} fill="#0F172A" stroke={rssi.color} strokeWidth={1.5} />
-        <text x={120} y={118} textAnchor="middle" fontSize={9} fill="#E2E8F0">
-          RSSI {network?.rssi != null ? `${network.rssi} dBm` : "—"}
-        </text>
-        <text x={120} y={132} textAnchor="middle" fontSize={9} fill="#E2E8F0">
-          SNR {network?.snr != null ? `${Number(network.snr).toFixed(1)} dB` : "—"}
-        </text>
-        <text x={120} y={144} textAnchor="middle" fontSize={8} fill={rssi.color}>
-          {rssi.label} · DR{network?.dr ?? "?"}
-        </text>
-        <rect x={60} y={158} width={120} height={6} rx={3} fill="#1E293B" />
-        <rect x={60} y={158} width={(120 * rssi.pct) / 100} height={6} rx={3} fill={rssi.color} />
-      </g>
+      <div className="flex flex-col justify-center py-2">
+        <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+          Lien LoRaWAN EU868
+        </p>
+        <div className="relative flex items-center justify-center py-4">
+          <div
+            className={`h-0.5 w-full ${linkActive ? "bg-gradient-to-r from-brand via-emerald-400 to-brand" : "border-t-2 border-dashed border-neutral-600 bg-transparent"}`}
+          />
+          {linkActive && (
+            <div className="absolute inset-0 flex items-center justify-around px-2">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-2.5 w-2.5 rounded-full shadow"
+                  style={{ background: rssi.color, animation: `pulse 1.5s ease-in-out ${i * 0.4}s infinite` }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border bg-neutral-900/80 p-3" style={{ borderColor: rssi.color }}>
+          <p className="text-center text-xs text-neutral-200">
+            RSSI {network?.rssi != null ? `${network.rssi} dBm` : "—"}
+          </p>
+          <p className="text-center text-xs text-neutral-200">
+            SNR {network?.snr != null ? `${Number(network.snr).toFixed(1)} dB` : "—"}
+          </p>
+          <p className="mt-1 text-center text-[11px] font-medium" style={{ color: rssi.color }}>
+            {rssi.label} · DR{network?.dr ?? "?"}
+          </p>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-800">
+            <div className="h-full rounded-full transition-all" style={{ width: `${rssi.pct}%`, background: rssi.color }} />
+          </div>
+        </div>
+        <div className="mt-3 hidden text-center text-[10px] text-neutral-500 lg:block">
+          {linkActive ? "↔ Uplink / Downlink actif" : "Lien inactif ou device offline"}
+        </div>
+      </div>
 
       {/* ── Gateway ── */}
-      <g transform="translate(500, 25)">
-        <rect width={200} height={160} rx={12} fill="#1F2937" stroke={gwColor} strokeWidth={2} />
-        <text x={100} y={22} textAnchor="middle" fontSize={10} fill={gwColor} fontWeight="bold">
-          GATEWAY
-        </text>
-        <path d="M100 40 L100 28 M88 40 Q100 32 112 40" stroke={gwColor} strokeWidth={2} fill="none" />
-        <rect x={70} y={48} width={60} height={40} rx={6} fill="#0F172A" stroke={gwColor} strokeWidth={1.5} />
-        <rect x={82} y={58} width={8} height={20} fill={gwColor} opacity={0.6} />
-        <rect x={96} y={52} width={8} height={26} fill={gwColor} opacity={0.8} />
-        <rect x={110} y={60} width={8} height={18} fill={gwColor} opacity={0.5} />
-        <text x={100} y={104} textAnchor="middle" fontSize={9} fill="#E2E8F0" fontWeight="bold">
-          {network?.gatewayState ?? "—"}
-        </text>
-        <text x={100} y={118} textAnchor="middle" fontSize={8} fill="#94A3B8" fontFamily="monospace">
-          {(network?.gatewayId ?? "—").slice(0, 12)}
-        </text>
-        <text x={100} y={132} textAnchor="middle" fontSize={7} fill="#64748B">
-          {network?.gatewayName ?? "Passerelle LoRaWAN"}
-        </text>
-        {network?.gatewayLastSeen && (
-          <text x={100} y={146} textAnchor="middle" fontSize={7} fill="#64748B">
-            vu {new Date(network.gatewayLastSeen).toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-          </text>
-        )}
-      </g>
-
-      {/* Flux eau (bas) */}
-      {isFlowing && (
-        <text x={110} y={210} fontSize={8} fill="#38BDF8">
-          ● Écoulement détecté
-        </text>
-      )}
-    </svg>
+      <div className="flex flex-col">
+        <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-widest" style={{ color: gwColor }}>
+          Gateway · {network?.gatewayState ?? "—"}
+        </p>
+        <div className="flex flex-1 flex-col rounded-xl border-2 p-3" style={{ borderColor: gwColor }}>
+          <div className="relative overflow-hidden rounded-lg bg-black">
+            <Image
+              src={GATEWAY_IMG}
+              alt="Passerelle LoRaWAN"
+              width={400}
+              height={280}
+              className="mx-auto h-auto w-full max-h-[160px] object-contain"
+            />
+            <span
+              className="absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow"
+              style={{ background: gwColor }}
+            >
+              {network?.gatewayState ?? "—"}
+            </span>
+          </div>
+          <div className="mt-3 space-y-1 text-center">
+            <p className="font-mono text-[10px] text-neutral-300">{network?.gatewayId ?? "—"}</p>
+            <p className="text-sm font-medium text-neutral-200">{network?.gatewayName ?? "Passerelle LoRaWAN"}</p>
+            {network?.gatewayLastSeen && (
+              <p className="text-[10px] text-neutral-500">
+                Vu {new Date(network.gatewayLastSeen).toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            )}
+            <p className="text-[10px] text-neutral-500">EU868 · Multi-plateforme</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
