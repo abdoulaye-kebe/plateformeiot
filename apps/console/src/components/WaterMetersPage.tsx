@@ -290,7 +290,6 @@ export default function WaterMetersPage() {
 
         {(activeDevEui || meters.length > 0) && (
         <WaterMeterDiagrams
-          devEui={activeDevEui || meters[0]?.dev_eui}
           indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
           valveOpen={active?.valve_open ?? readings[0]?.valve_open}
           batteryV={active?.battery_v ?? readings[0]?.battery_v}

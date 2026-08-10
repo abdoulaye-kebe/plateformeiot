@@ -7,7 +7,6 @@ type ReadingPoint = {
 };
 
 type Props = {
-  devEui?: string;
   indexM3?: number;
   valveOpen?: boolean | null;
   batteryV?: number;
@@ -19,27 +18,6 @@ const ORANGE = "#FF7900";
 const ORANGE_LIGHT = "#FFF4EB";
 const GRAY = "#525252";
 const GRAY_LIGHT = "#F4F4F4";
-
-function ArrowRight({ className }: { className?: string }) {
-  return (
-    <svg className={className} width={32} height={16} viewBox="0 0 32 16" aria-hidden>
-      <path d="M0 8 H22 M18 4 L26 8 L18 12" stroke={ORANGE} strokeWidth={2} fill="none" />
-    </svg>
-  );
-}
-
-function FlowBox({ title, sub, accent }: { title: string; sub: string; accent?: boolean }) {
-  return (
-    <div
-      className={`min-w-[88px] rounded-lg border-2 px-3 py-2 text-center ${
-        accent ? "border-brand bg-brand-light" : "border-gray-200 bg-white"
-      }`}
-    >
-      <p className="text-xs font-bold text-gray-900">{title}</p>
-      <p className="mt-0.5 text-[10px] leading-tight text-gray-500">{sub}</p>
-    </div>
-  );
-}
 
 /** Schéma physique : tuyau → compteur → vanne */
 function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" | "valveOpen" | "batteryV">) {
@@ -120,63 +98,6 @@ function MeterSchematic({ indexM3, valveOpen, batteryV }: Pick<Props, "indexM3" 
       <p className="mt-2 text-center text-[11px] text-gray-500">
         L&apos;index monte à chaque litre consommé · La vanne coupe ou autorise l&apos;eau · La batterie alimente le module LoRaWAN
       </p>
-    </div>
-  );
-}
-
-/** Flux uplink télérelevé */
-function UplinkDiagram({ devEui }: { devEui?: string }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-neutral-50 p-4">
-      <p className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-dark">Télérelevé (uplink)</p>
-      <p className="mb-3 text-[11px] text-gray-500">Le compteur envoie index, vanne et batterie automatiquement</p>
-      <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
-        <FlowBox title="Compteur" sub={devEui ? devEui.slice(-8) : "DevEUI"} accent />
-        <ArrowRight />
-        <FlowBox title="Gateway" sub="LoRaWAN RF" />
-        <ArrowRight />
-        <FlowBox title="ChirpStack" sub="Decode V1.6" accent />
-        <ArrowRight />
-        <FlowBox title="mqtt-ingestion" sub="Archive + NATS" />
-        <ArrowRight />
-        <FlowBox title="shengda-water" sub="Index m³" accent />
-        <ArrowRight />
-        <FlowBox title="Console" sub="Cette page" />
-      </div>
-      <div className="mt-3 rounded-lg border border-brand-muted bg-white px-3 py-2 text-[11px] text-gray-600">
-        <strong className="text-gray-800">Données remontées :</strong> index m³ · état vanne · batterie · alarmes · déclencheur (routine, alarme…)
-      </div>
-    </div>
-  );
-}
-
-/** Flux downlink commandes */
-function DownlinkDiagram() {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-neutral-50 p-4">
-      <p className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-dark">Commande (downlink)</p>
-      <p className="mb-3 text-[11px] text-gray-500">Vous cliquez ici → le compteur reçoit la commande au prochain uplink Class A</p>
-      <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
-        <FlowBox title="Console" sub="Ouvrir / Fermer" accent />
-        <ArrowRight />
-        <FlowBox title="Platform API" sub=":8081" />
-        <ArrowRight />
-        <FlowBox title="ChirpStack" sub="Queue port 2" accent />
-        <ArrowRight />
-        <FlowBox title="Gateway" sub="Fenêtre RX" />
-        <ArrowRight />
-        <FlowBox title="Compteur" sub="Vanne actionnée" accent />
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px]">
-          <span className="font-medium text-emerald-700">Ouvrir</span>
-          <code className="ml-2 font-mono text-[10px]">261F0045</code>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px]">
-          <span className="font-medium text-red-600">Fermer</span>
-          <code className="ml-2 font-mono text-[10px]">261F0146</code>
-        </div>
-      </div>
     </div>
   );
 }
@@ -280,7 +201,6 @@ function LeakPrincipleDiagram({ valveOpen }: { valveOpen?: boolean | null }) {
 }
 
 export default function WaterMeterDiagrams({
-  devEui,
   indexM3,
   valveOpen,
   batteryV,
@@ -293,7 +213,7 @@ export default function WaterMeterDiagrams({
         <div>
           <h2 className="text-base font-semibold text-gray-900">Vue schématique</h2>
           <p className="text-sm text-gray-500">
-            Comprendre le fonctionnement du compteur, les flux de données et l&apos;état actuel
+            État actuel du compteur et évolution de l&apos;index
             {lastReadingAt ? ` · dernier relevé ${new Date(lastReadingAt).toLocaleString("fr-FR")}` : ""}
           </p>
         </div>
@@ -302,11 +222,6 @@ export default function WaterMeterDiagrams({
       <div className="grid gap-4 xl:grid-cols-2">
         <MeterSchematic indexM3={indexM3} valveOpen={valveOpen} batteryV={batteryV} />
         <IndexChart readings={readings} />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <UplinkDiagram devEui={devEui} />
-        <DownlinkDiagram />
       </div>
 
       <LeakPrincipleDiagram valveOpen={valveOpen} />
