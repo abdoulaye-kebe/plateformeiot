@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, RoleBanner, Section, EmptyState } from "@/components/ui";
+import WaterMeterDigitalTwin from "@/components/WaterMeterDigitalTwin";
 import WaterMeterDiagrams from "@/components/WaterMeterDiagrams";
 
 type MeterRow = {
@@ -45,6 +46,15 @@ type QueueItem = {
   confirmed?: boolean;
   data?: string;
   isPending?: boolean;
+};
+
+type LeakRow = {
+  id: string;
+  leak_type: string;
+  severity: string;
+  title: string;
+  flow_m3h?: number;
+  detected_at: string;
 };
 
 function b64ToHex(b64: string): string {
@@ -113,6 +123,7 @@ export default function WaterMetersPage() {
   const [intervalErr, setIntervalErr] = useState("");
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queueCount, setQueueCount] = useState(0);
+  const [leaks, setLeaks] = useState<LeakRow[]>([]);
 
   const loadMeters = useCallback(async () => {
     setLoadError("");
@@ -137,15 +148,17 @@ export default function WaterMetersPage() {
 
   const loadDetails = useCallback(async (devEui: string) => {
     if (!devEui) return;
-    const [r, c, q] = await Promise.all([
+    const [r, c, q, l] = await Promise.all([
       apiFetch<{ result?: ReadingRow[] }>(`/api/v1/shengda/meters/${devEui}/readings?limit=20`),
       apiFetch<{ result?: CommandRow[] }>(`/api/v1/shengda/meters/${devEui}/commands?limit=10`),
       apiFetch<{ result?: QueueItem[]; totalCount?: number }>(`/api/v1/lorawan/devices/${devEui}/downlink`),
+      apiFetch<{ result?: LeakRow[] }>(`/api/v1/shengda/leaks?status=active&devEui=${devEui}&limit=20`),
     ]);
     setReadings(r?.result ?? []);
     setCommands(c?.result ?? []);
     setQueueItems(q?.result ?? []);
     setQueueCount(q?.totalCount ?? q?.result?.length ?? 0);
+    setLeaks(l?.result ?? []);
   }, []);
 
   useEffect(() => {
@@ -235,6 +248,20 @@ export default function WaterMetersPage() {
 
   const active = meters.find((m) => m.dev_eui === selected) ?? (activeDevEui ? { dev_eui: activeDevEui } : undefined);
 
+  const twinMeter: MeterRow | undefined = activeDevEui
+    ? {
+        dev_eui: activeDevEui,
+        name: active?.name,
+        last_index_m3: active?.last_index_m3 ?? readings[0]?.index_m3,
+        last_index_liters: active?.last_index_liters,
+        valve_open: active?.valve_open ?? readings[0]?.valve_open,
+        battery_v: active?.battery_v ?? readings[0]?.battery_v,
+        magnetic_attack: active?.magnetic_attack,
+        battery_low: active?.battery_low,
+        last_reading_at: active?.last_reading_at ?? readings[0]?.time,
+      }
+    : undefined;
+
   return (
     <div className="p-4 lg:p-6">
       <PageHeader
@@ -289,13 +316,21 @@ export default function WaterMetersPage() {
       </div>
 
         {(activeDevEui || meters.length > 0) && (
-        <WaterMeterDiagrams
-          indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
-          valveOpen={active?.valve_open ?? readings[0]?.valve_open}
-          batteryV={active?.battery_v ?? readings[0]?.battery_v}
-          lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
-          readings={readings}
-        />
+        <>
+          <WaterMeterDigitalTwin
+            meter={twinMeter}
+            readings={readings}
+            commands={commands}
+            leaks={leaks}
+          />
+          <WaterMeterDiagrams
+            indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
+            valveOpen={active?.valve_open ?? readings[0]?.valve_open}
+            batteryV={active?.battery_v ?? readings[0]?.battery_v}
+            lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
+            readings={readings}
+          />
+        </>
       )}
 
       <Section title="Compteurs">
