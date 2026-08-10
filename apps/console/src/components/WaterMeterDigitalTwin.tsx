@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type TwinReading = {
   time: string;
@@ -154,26 +154,10 @@ function TwinCanvas({
         <rect x={20} y={118} width={360} height={24} rx={12} fill="#1E293B" stroke="#334155" strokeWidth={2} />
         <rect x={24} y={122} width={352} height={16} rx={8} fill="#0F172A" />
 
-        {/* Flux animé */}
+        {/* Flux animé (positions fixes — compatible React SSR) */}
         {isFlowing &&
-          [0, 1, 2].map((i) => (
-            <circle key={i} r={4} fill="#38BDF8" opacity={0.9}>
-              <animate
-                attributeName="cx"
-                values="40;360"
-                dur="2.5s"
-                repeatCount="indefinite"
-                begin={`${i * 0.7}s`}
-              />
-              <animate attributeName="cy" values="130;130" dur="2.5s" repeatCount="indefinite" begin={`${i * 0.7}s`} />
-              <animate
-                attributeName="opacity"
-                values="0;1;1;0"
-                dur="2.5s"
-                repeatCount="indefinite"
-                begin={`${i * 0.7}s`}
-              />
-            </circle>
+          [80, 160, 240].map((cx) => (
+            <circle key={cx} cx={cx} cy={130} r={4} fill="#38BDF8" opacity={0.85} />
           ))}
 
         {/* Compteur — corps */}
@@ -274,9 +258,11 @@ function MetricTile({ label, value, sub, alert }: { label: string; value: string
 }
 
 function EventTimeline({ readings, commands }: { readings: TwinReading[]; commands: TwinCommand[] }) {
+  const safeReadings = Array.isArray(readings) ? readings : [];
+  const safeCommands = Array.isArray(commands) ? commands : [];
   const events = useMemo(() => {
     const items: { time: string; kind: string; label: string; detail?: string }[] = [];
-    for (const r of readings.slice(0, 8)) {
+    for (const r of safeReadings.slice(0, 8)) {
       const idx = asNumber(r.index_m3);
       items.push({
         time: r.time,
@@ -287,7 +273,7 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
           .join(" · "),
       });
     }
-    for (const c of commands.slice(0, 5)) {
+    for (const c of safeCommands.slice(0, 5)) {
       items.push({
         time: c.created_at,
         kind: "command",
@@ -296,7 +282,7 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
       });
     }
     return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 10);
-  }, [readings, commands]);
+  }, [safeReadings, safeCommands]);
 
   if (events.length === 0) {
     return <p className="text-xs text-gray-500">Aucun événement récent pour alimenter le jumeau.</p>;
@@ -324,21 +310,41 @@ function EventTimeline({ readings, commands }: { readings: TwinReading[]; comman
   );
 }
 
-export default function WaterMeterDigitalTwin({ meter, readings = [], commands = [], leaks = [] }: Props) {
-  const devEui = meter?.dev_eui ?? "";
-  const valveOpen = meter?.valve_open ?? readings[0]?.valve_open;
-  const indexM3 = asNumber(meter?.last_index_m3 ?? readings[0]?.index_m3);
-  const indexLiters = asNumber(meter?.last_index_liters);
-  const batteryV = asNumber(meter?.battery_v ?? readings[0]?.battery_v);
-  const lastAt = meter?.last_reading_at ?? readings[0]?.time;
+export default function WaterMeterDigitalTwin({
+  meter,
+  readings,
+  commands,
+  leaks,
+}: Props) {
+  const safeReadings = Array.isArray(readings) ? readings : [];
+  const safeCommands = Array.isArray(commands) ? commands : [];
+  const safeLeaks = Array.isArray(leaks) ? leaks : [];
 
-  const flowM3h = useMemo(() => computeFlowM3h(readings), [readings]);
-  const health = healthStatus(meter, leaks, flowM3h, valveOpen);
+  const [syncLabel, setSyncLabel] = useState<string>("");
+
+  const devEui = meter?.dev_eui ?? "";
+  const valveOpen = meter?.valve_open ?? safeReadings[0]?.valve_open;
+  const indexM3 = asNumber(meter?.last_index_m3 ?? safeReadings[0]?.index_m3);
+  const indexLiters = asNumber(meter?.last_index_liters);
+  const batteryV = asNumber(meter?.battery_v ?? safeReadings[0]?.battery_v);
+  const lastAt = meter?.last_reading_at ?? safeReadings[0]?.time;
+
+  const flowM3h = useMemo(() => computeFlowM3h(safeReadings), [safeReadings]);
+  const health = healthStatus(meter, safeLeaks, flowM3h, valveOpen);
   const isFlowing = valveOpen !== false && flowM3h != null && flowM3h > 0.001;
 
-  const syncAge = lastAt
-    ? Math.round((Date.now() - new Date(lastAt).getTime()) / 60_000)
-    : null;
+  useEffect(() => {
+    if (!lastAt) {
+      setSyncLabel("");
+      return;
+    }
+    const ageMin = Math.round((Date.now() - new Date(lastAt).getTime()) / 60_000);
+    setSyncLabel(
+      ageMin >= 0 && ageMin < 120
+        ? ` · sync il y a ${ageMin} min`
+        : ` · sync ${new Date(lastAt).toLocaleString("fr-FR")}`
+    );
+  }, [lastAt]);
 
   return (
     <section className="mb-8 space-y-4">
@@ -347,12 +353,12 @@ export default function WaterMeterDigitalTwin({ meter, readings = [], commands =
           <h2 className="text-base font-semibold text-gray-900">Jumeau numérique</h2>
           <p className="text-sm text-gray-500">
             Réplique virtuelle synchronisée avec le compteur physique
-            {lastAt ? ` · sync il y a ${syncAge != null && syncAge < 120 ? `${syncAge} min` : new Date(lastAt).toLocaleString("fr-FR")}` : ""}
+            {syncLabel}
           </p>
         </div>
-        {leaks.length > 0 && (
+        {safeLeaks.length > 0 && (
           <Link href="/apps/shengda/leak-detection" className="text-xs font-medium text-red-600 hover:underline">
-            {leaks.length} alerte(s) fuite active(s) →
+            {safeLeaks.length} alerte(s) fuite active(s) →
           </Link>
         )}
       </div>
@@ -397,13 +403,13 @@ export default function WaterMeterDigitalTwin({ meter, readings = [], commands =
         </div>
       </div>
 
-      {leaks.length > 0 && (
+      {safeLeaks.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="text-xs font-bold uppercase text-red-800">Alertes synchronisées</p>
           <ul className="mt-2 space-y-1">
-            {leaks.map((l) => (
-              <li key={l.id} className="text-sm text-red-900">
-                <span className="font-medium capitalize">{l.severity}</span> — {l.title}
+            {safeLeaks.map((l, i) => (
+              <li key={l.id ?? `leak-${i}`} className="text-sm text-red-900">
+                <span className="font-medium capitalize">{l.severity ?? "info"}</span> — {l.title ?? l.leak_type}
                 {l.flow_m3h != null ? ` (${formatFlow(asNumber(l.flow_m3h) ?? null)})` : ""}
               </li>
             ))}
@@ -414,7 +420,7 @@ export default function WaterMeterDigitalTwin({ meter, readings = [], commands =
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Historique jumeau</p>
-          <EventTimeline readings={readings} commands={commands} />
+          <EventTimeline readings={safeReadings} commands={safeCommands} />
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-dark">Correspondance physique ↔ virtuel</p>

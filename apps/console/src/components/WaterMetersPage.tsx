@@ -7,6 +7,7 @@ import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, RoleBanner, Section, EmptyState } from "@/components/ui";
 import WaterMeterDigitalTwin from "@/components/WaterMeterDigitalTwin";
 import WaterMeterDiagrams from "@/components/WaterMeterDiagrams";
+import ClientOnly from "@/components/ClientOnly";
 
 type MeterRow = {
   dev_eui: string;
@@ -134,7 +135,7 @@ export default function WaterMetersPage() {
       setLoadError("Impossible de charger les compteurs (API Shengda indisponible ou tenant non mappé).");
       return;
     }
-    const rows = data.result ?? [];
+    const rows = Array.isArray(data.result) ? data.result : [];
     setMeters(rows);
     if (data.syncedFromArchives) {
       setMessage(`${data.syncedFromArchives} compteur(s) importé(s) depuis les archives de payloads.`);
@@ -154,10 +155,10 @@ export default function WaterMetersPage() {
       apiFetch<{ result?: QueueItem[]; totalCount?: number }>(`/api/v1/lorawan/devices/${devEui}/downlink`),
       apiFetch<{ result?: LeakRow[] }>(`/api/v1/shengda/leaks?status=active&devEui=${encodeURIComponent(devEui)}&limit=20`),
     ]);
-    setReadings(r?.result ?? []);
-    setCommands(c?.result ?? []);
-    setQueueItems(q?.result ?? []);
-    setQueueCount(q?.totalCount ?? q?.result?.length ?? 0);
+    setReadings(Array.isArray(r?.result) ? r.result : []);
+    setCommands(Array.isArray(c?.result) ? c.result : []);
+    setQueueItems(Array.isArray(q?.result) ? q.result : []);
+    setQueueCount(q?.totalCount ?? (Array.isArray(q?.result) ? q.result.length : 0));
     setLeaks(Array.isArray(l?.result) ? l.result : []);
   }, []);
 
@@ -317,19 +318,29 @@ export default function WaterMetersPage() {
 
         {(activeDevEui || meters.length > 0) && (
         <>
-          <WaterMeterDigitalTwin
-            meter={twinMeter}
-            readings={readings}
-            commands={commands}
-            leaks={leaks}
-          />
-          <WaterMeterDiagrams
-            indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
-            valveOpen={active?.valve_open ?? readings[0]?.valve_open}
-            batteryV={active?.battery_v ?? readings[0]?.battery_v}
-            lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
-            readings={readings}
-          />
+          <ClientOnly
+            fallback={
+              <div className="mb-8 rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
+                Chargement du jumeau numérique…
+              </div>
+            }
+          >
+            <WaterMeterDigitalTwin
+              meter={twinMeter}
+              readings={readings}
+              commands={commands}
+              leaks={leaks}
+            />
+          </ClientOnly>
+          <ClientOnly>
+            <WaterMeterDiagrams
+              indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
+              valveOpen={active?.valve_open ?? readings[0]?.valve_open}
+              batteryV={active?.battery_v ?? readings[0]?.battery_v}
+              lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
+              readings={readings}
+            />
+          </ClientOnly>
         </>
       )}
 
