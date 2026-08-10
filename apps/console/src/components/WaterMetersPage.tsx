@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, RoleBanner, Section, EmptyState } from "@/components/ui";
+import WaterMeterDiagrams from "@/components/WaterMeterDiagrams";
 
 type MeterRow = {
   dev_eui: string;
@@ -259,9 +260,12 @@ export default function WaterMetersPage() {
         <p className="mb-4 rounded-lg border border-brand bg-brand-light px-4 py-3 text-sm text-brand-dark">{message}</p>
       )}
 
-      <p className="mb-4 text-sm">
+      <p className="mb-4 flex flex-wrap gap-4 text-sm">
         <Link href="/data/decoders" className="text-brand hover:underline">
           Décodeurs JavaScript ChirpStack →
+        </Link>
+        <Link href="/apps/shengda/leak-detection" className="text-brand hover:underline">
+          Détection de fuites →
         </Link>
       </p>
 
@@ -283,6 +287,17 @@ export default function WaterMetersPage() {
           </p>
         </article>
       </div>
+
+        {(activeDevEui || meters.length > 0) && (
+        <WaterMeterDiagrams
+          devEui={activeDevEui || meters[0]?.dev_eui}
+          indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
+          valveOpen={active?.valve_open ?? readings[0]?.valve_open}
+          batteryV={active?.battery_v ?? readings[0]?.battery_v}
+          lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
+          readings={readings}
+        />
+      )}
 
       <Section title="Compteurs">
         {meters.length === 0 ? (
