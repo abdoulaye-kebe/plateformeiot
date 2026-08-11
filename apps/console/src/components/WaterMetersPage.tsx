@@ -164,6 +164,7 @@ export default function WaterMetersPage() {
 
   const loadDetails = useCallback(async (devEui: string) => {
     if (!devEui) return;
+    try {
     const [r, c, q, l, radio, msgs, linkMetrics] = await Promise.all([
       apiFetch<{ result?: ReadingRow[] }>(`/api/v1/shengda/meters/${devEui}/readings?limit=20`),
       apiFetch<{ result?: CommandRow[] }>(`/api/v1/shengda/meters/${devEui}/commands?limit=10`),
@@ -209,6 +210,9 @@ export default function WaterMetersPage() {
     }
 
     setNetwork(net);
+    } catch (err) {
+      console.error("loadDetails failed", err);
+    }
   }, []);
 
   useEffect(() => {

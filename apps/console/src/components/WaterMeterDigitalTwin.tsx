@@ -141,6 +141,13 @@ function deviceStatusLabel(status?: string): string {
   return status ?? "—";
 }
 
+function formatDateFr(value?: string): string {
+  if (!value) return "";
+  const t = new Date(value).getTime();
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
 function NetworkTopology({
   devEui,
   indexM3,
@@ -272,9 +279,9 @@ function NetworkTopology({
           <div className="mt-3 space-y-1 text-center">
             <p className="font-mono text-[10px] text-neutral-300">{network?.gatewayId ?? "—"}</p>
             <p className="text-sm font-medium text-neutral-200">{network?.gatewayName ?? "Passerelle LoRaWAN"}</p>
-            {network?.gatewayLastSeen && (
+            {network?.gatewayLastSeen && formatDateFr(network.gatewayLastSeen) && (
               <p className="text-[10px] text-neutral-500">
-                Vu {new Date(network.gatewayLastSeen).toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                Vu {formatDateFr(network.gatewayLastSeen)}
               </p>
             )}
             <p className="text-[10px] text-neutral-500">EU868 · Multi-plateforme</p>
@@ -425,7 +432,12 @@ export default function WaterMeterDigitalTwin({
       setSyncLabel("");
       return;
     }
-    const ageMin = Math.round((Date.now() - new Date(lastAt).getTime()) / 60_000);
+    const t = new Date(lastAt).getTime();
+    if (!Number.isFinite(t)) {
+      setSyncLabel("");
+      return;
+    }
+    const ageMin = Math.round((Date.now() - t) / 60_000);
     setSyncLabel(
       ageMin >= 0 && ageMin < 120
         ? ` · sync il y a ${ageMin} min`
