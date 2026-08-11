@@ -8,6 +8,12 @@ import { PageHeader, RoleBanner, Section, EmptyState } from "@/components/ui";
 import WaterMeterDigitalTwin, { type NetworkContext } from "@/components/WaterMeterDigitalTwin";
 import WaterMeterDiagrams from "@/components/WaterMeterDiagrams";
 import ClientOnly from "@/components/ClientOnly";
+import ErrorBoundary from "@/components/ErrorBoundary";
+
+function safeGatewayId(value: unknown): string | undefined {
+  const s = String(value ?? "").trim().toLowerCase();
+  return s || undefined;
+}
 
 type MeterRow = {
   dev_eui: string;
@@ -180,8 +186,9 @@ export default function WaterMetersPage() {
     setQueueCount(q?.totalCount ?? (Array.isArray(q?.result) ? q.result.length : 0));
     setLeaks(Array.isArray(l?.result) ? l.result : []);
 
-    const lastPoint = linkMetrics?.points?.length ? linkMetrics.points[linkMetrics.points.length - 1] : undefined;
-    const gatewayId = msgs?.result?.[0]?.gatewayId?.toLowerCase();
+    const points = Array.isArray(linkMetrics?.points) ? linkMetrics.points : [];
+    const lastPoint = points.length ? points[points.length - 1] : undefined;
+    const gatewayId = safeGatewayId(msgs?.result?.[0]?.gatewayId);
     const lastSeen = readingRows[0]?.time;
     const net: NetworkContext = {
       gatewayId,
@@ -367,26 +374,30 @@ export default function WaterMetersPage() {
               </div>
             }
           >
-            <WaterMeterDigitalTwin
-              meter={twinMeter}
-              readings={readings}
-              commands={commands}
-              leaks={leaks}
-              network={network}
-              write={write}
-              busy={busy}
-              queueCount={queueCount}
-              onCommand={(action) => sendCommand(action)}
-            />
+            <ErrorBoundary label="Jumeau numérique réseau">
+              <WaterMeterDigitalTwin
+                meter={twinMeter}
+                readings={readings}
+                commands={commands}
+                leaks={leaks}
+                network={network}
+                write={write}
+                busy={busy}
+                queueCount={queueCount}
+                onCommand={(action) => sendCommand(action)}
+              />
+            </ErrorBoundary>
           </ClientOnly>
           <ClientOnly>
-            <WaterMeterDiagrams
-              indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
-              valveOpen={active?.valve_open ?? readings[0]?.valve_open}
-              batteryV={active?.battery_v ?? readings[0]?.battery_v}
-              lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
-              readings={readings}
-            />
+            <ErrorBoundary label="Vue schématique">
+              <WaterMeterDiagrams
+                indexM3={active?.last_index_m3 ?? readings[0]?.index_m3}
+                valveOpen={active?.valve_open ?? readings[0]?.valve_open}
+                batteryV={active?.battery_v ?? readings[0]?.battery_v}
+                lastReadingAt={active?.last_reading_at ?? readings[0]?.time}
+                readings={readings}
+              />
+            </ErrorBoundary>
           </ClientOnly>
         </>
       )}
