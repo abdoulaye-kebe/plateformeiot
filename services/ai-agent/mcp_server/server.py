@@ -26,6 +26,10 @@ mcp = FastMCP(
 cs = ChirpStackClient()
 shengda = ShengdaClient(chirpstack=cs)
 
+from mcp_server.tenant_middleware import TenantScopeMiddleware  # noqa: E402
+
+mcp.add_middleware(TenantScopeMiddleware())
+
 
 def _parse_last_seen(value: Any) -> datetime | None:
     if not value:

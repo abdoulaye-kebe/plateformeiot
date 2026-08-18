@@ -86,6 +86,8 @@ async def health() -> dict[str, str]:
 
 @app.get("/api/v1/tools")
 async def list_tools(request: Request) -> dict:
+    agent = get_agent()
+    agent.set_chirpstack_tenant_id(request.headers.get("X-ChirpStack-Tenant-Id"))
     cfg = None
     if request.headers.get("X-Tenant-Agent-Config"):
         cfg = parse_tenant_config_header(request.headers.get("X-Tenant-Agent-Config"))
@@ -98,6 +100,7 @@ async def list_tools(request: Request) -> dict:
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, request: Request) -> ChatResponse:
     agent = get_agent()
+    agent.set_chirpstack_tenant_id(request.headers.get("X-ChirpStack-Tenant-Id"))
     cfg = None
     if req.tenantConfig:
         cfg = TenantAgentConfig.from_payload(req.tenantConfig.model_dump())

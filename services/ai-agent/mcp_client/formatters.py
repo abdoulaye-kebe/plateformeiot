@@ -129,6 +129,21 @@ def _format_low_battery(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_stale_devices(data: dict[str, Any]) -> str:
+    hours = data.get("hoursThreshold", 24)
+    items = data.get("staleDevices", [])
+    if not items:
+        return f"Aucun device sans uplink depuis {hours} h — tous les capteurs ont remonté récemment."
+    lines = [f"Devices sans uplink depuis {hours} h ({data.get('staleCount', len(items))}) :"]
+    for d in items[:30]:
+        offline = d.get("offlineHours")
+        offline_txt = f" — ~{offline} h" if offline is not None else " — jamais vu"
+        lines.append(
+            f"  • {d.get('name', '?')} ({d.get('devEui', '?')}) — last seen: {d.get('lastSeenAt', 'jamais')}{offline_txt}"
+        )
+    return "\n".join(lines)
+
+
 def _format_list_water_meters(data: dict[str, Any]) -> str:
     items = data.get("result", [])
     if not items:

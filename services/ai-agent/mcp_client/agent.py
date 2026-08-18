@@ -62,6 +62,7 @@ class LoRaWANAgent:
         self._llm_error: str | None = None
         self._last_form: str | None = None
         self._tenant_config: TenantAgentConfig | None = None
+        self._chirpstack_tenant_id: str = ""
         try:
             self.llm, default_model = create_llm_client()
             if not model:
@@ -76,6 +77,20 @@ class LoRaWANAgent:
     def set_tenant_config(self, config: TenantAgentConfig | None) -> None:
         self._tenant_config = config
 
+    def set_chirpstack_tenant_id(self, tenant_id: str | None) -> None:
+        self._chirpstack_tenant_id = (tenant_id or "").strip()
+
+    def _mcp_client(self) -> Client:
+        if self._chirpstack_tenant_id:
+            from fastmcp.client.transports.sse import SSETransport
+
+            transport = SSETransport(
+                self.mcp_url,
+                headers={"X-ChirpStack-Tenant-Id": self._chirpstack_tenant_id},
+            )
+            return Client(transport)
+        return Client(self.mcp_url)
+
     def _system_prompt(self) -> str:
         if self._tenant_config and self._tenant_config.system_prompt.strip():
             return self._tenant_config.system_prompt.strip()
@@ -87,7 +102,7 @@ class LoRaWANAgent:
     async def list_tools(self, tenant_config: TenantAgentConfig | None = None) -> list[dict[str, Any]]:
         cfg = tenant_config or self._tenant_config
         out: list[dict[str, Any]] = []
-        async with Client(self.mcp_url) as client:
+        async with self._mcp_client() as client:
             tools = await client.list_tools()
             for t in tools:
                 if cfg and not cfg.builtin_allowed(t.name):
@@ -126,7 +141,7 @@ class LoRaWANAgent:
             {"role": "user", "content": question},
         ]
 
-        async with Client(self.mcp_url) as client:
+        async with self._mcp_client() as client:
             openai_tools = await self._openai_tools(client)
 
             for _ in range(max_tool_rounds):
@@ -154,7 +169,7 @@ class LoRaWANAgent:
 
     async def _ask_ollama_hybrid(self, question: str, max_rounds: int) -> str:
         """Mode hybride pour modèles CPU — fast-path MCP puis Ollama si nécessaire."""
-        async with Client(self.mcp_url) as client:
+        async with self._mcp_client() as client:
             # Fast-path : requêtes courantes sans attendre Ollama (30-60s sur CPU)
             routed = route_natural_language(question) if self.fast else None
             if routed:
@@ -318,7 +333,7 @@ class LoRaWANAgent:
         ) + hint
 
     async def _fallback_without_llm(self, question: str) -> str:
-        async with Client(self.mcp_url) as client:
+        async with self._mcp_client() as client:
             return await self._fallback_with_client(
                 client, question, ollama_error=self._llm_error or "LLM non configuré"
             )
