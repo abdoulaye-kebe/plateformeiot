@@ -401,6 +401,46 @@ async def find_low_battery_devices(limit: int = 100) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def find_stale_devices(hours: int = 24, limit: int = 50) -> dict[str, Any]:
+    """Liste les devices sans uplink depuis N heures (selon lastSeenAt ChirpStack)."""
+    hours = max(1, min(int(hours), 720))
+    limit = max(1, min(int(limit), 200))
+    devices = await cs.list_devices(limit=200)
+    now = datetime.now(timezone.utc)
+    threshold_sec = hours * 3600
+    stale: list[dict[str, Any]] = []
+
+    for item in devices.get("result", []):
+        device = item.get("device", item)
+        last_seen = _parse_last_seen(device.get("lastSeenAt"))
+        if last_seen is None:
+            age_sec = None
+            is_stale = True
+        else:
+            age_sec = (now - last_seen.astimezone(timezone.utc)).total_seconds()
+            is_stale = age_sec > threshold_sec
+        if not is_stale:
+            continue
+        stale.append(
+            {
+                "devEui": device.get("devEui"),
+                "name": device.get("name"),
+                "lastSeenAt": device.get("lastSeenAt"),
+                "offlineHours": round(age_sec / 3600, 1) if age_sec is not None else None,
+            }
+        )
+        if len(stale) >= limit:
+            break
+
+    return {
+        "hoursThreshold": hours,
+        "totalScanned": len(devices.get("result", [])),
+        "staleCount": len(stale),
+        "staleDevices": stale,
+    }
+
+
+@mcp.tool()
 async def network_overview() -> dict[str, Any]:
     """Vue réseau : devices/gateways total et offline."""
     devices = await cs.list_devices(limit=200)

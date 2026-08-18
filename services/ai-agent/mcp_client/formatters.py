@@ -23,6 +23,7 @@ def format_tool_result(tool_name: str, raw: str, intent: str | None = None) -> s
         "list_devices": _format_list_devices,
         "list_applications": _format_list_applications,
         "find_low_battery_devices": _format_low_battery,
+        "find_stale_devices": _format_stale_devices,
         "list_water_meters": _format_list_water_meters,
         "get_water_meter_telemetry": _format_water_meter_telemetry,
         "get_latest_water_meter_reading": _format_water_meter_telemetry,

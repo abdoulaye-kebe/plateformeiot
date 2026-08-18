@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 GATEWAY_WORDS = ("gateway", "gateways", "passerelle", "passerelles")
-DEVICE_WORDS = ("device", "devices", "appareil", "appareils", "capteur", "capteurs", "capteurs")
+DEVICE_WORDS = ("device", "devices", "appareil", "appareils", "capteur", "capteurs", "collier", "colliers")
 METER_WORDS = ("compteur", "compteurs", "meter", "meters", "eau", "shengda")
 METER_TELEMETRY_WORDS = (
     "m3",
@@ -192,7 +192,46 @@ def _extract_dev_eui(q: str) -> str | None:
 
 
 def _asks_meter_telemetry(lower: str) -> bool:
-    return any(w in lower for w in METER_TELEMETRY_WORDS)
+    """Télémétrie compteur d'eau — pas les uplinks réseau (« remonté depuis 24 h »)."""
+    if _asks_stale_devices(lower):
+        return False
+    if _mentions(lower, METER_WORDS):
+        return any(w in lower for w in METER_TELEMETRY_WORDS)
+    water_specific = ("m3", "m³", "index", "vanne", "consommation", "télémétrie", "telemetrie", "litre", "litres")
+    return any(w in lower for w in water_specific)
+
+
+def _parse_stale_hours(lower: str) -> int:
+    m = re.search(r"depuis\s+(\d+)\s*h", lower)
+    if m:
+        return max(1, int(m.group(1)))
+    m = re.search(r"(\d+)\s*h(?:eure|ours|our)?\b", lower)
+    if m and any(w in lower for w in ("depuis", "sans", "pas", "remont", "uplink")):
+        return max(1, int(m.group(1)))
+    return 24
+
+
+def _asks_stale_devices(lower: str) -> bool:
+    if not (_mentions(lower, DEVICE_WORDS) or "collier" in lower):
+        return False
+    stale_markers = (
+        "pas remont",
+        "n'ont pas remont",
+        "sans remont",
+        "sans uplink",
+        "pas d'uplink",
+        "no uplink",
+        "inactif",
+        "silencieux",
+        "offline",
+        "hors ligne",
+        "dernière activité",
+        "derniere activite",
+        "last seen",
+    )
+    if any(m in lower for m in stale_markers):
+        return True
+    return bool(re.search(r"depuis\s+\d+\s*h", lower) and any(w in lower for w in ("remont", "uplink", "activ")))
 
 
 def _parse_interval_seconds(lower: str) -> int | None:
@@ -321,6 +360,9 @@ def route_natural_language(question: str) -> tuple[str, dict[str, Any]] | None:
 
     if "batter" in lower:
         return "find_low_battery_devices", {"limit": 100}
+
+    if _asks_stale_devices(lower):
+        return "find_stale_devices", {"hours": _parse_stale_hours(lower), "limit": 50}
 
     downlink = _route_meter_downlink(q, lower)
     if downlink:
