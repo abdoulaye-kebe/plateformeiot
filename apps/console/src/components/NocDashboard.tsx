@@ -66,7 +66,10 @@ export default function NocDashboard() {
     { label: "Gateways", value: overview?.activeGateways24h ?? 0, tone: "text-brand" },
     {
       label: "RSSI moyen",
-      value: overview?.avgRssi24h != null ? `${overview.avgRssi24h.toFixed(1)} dBm` : "—",
+      value:
+        overview?.avgRssi24h != null && Number.isFinite(Number(overview.avgRssi24h))
+          ? `${Number(overview.avgRssi24h).toFixed(1)} dBm`
+          : "—",
       tone: overview?.avgRssi24h != null && overview.avgRssi24h < -115 ? "text-brand-dark" : "text-white",
     },
   ];

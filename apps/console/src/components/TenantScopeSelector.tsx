@@ -34,7 +34,7 @@ export default function TenantScopeSelector({ variant = "sidebar" }: Props) {
   if (variant === "header") {
     return (
       <select
-        className="max-w-[130px] truncate rounded border border-white/30 bg-black px-2 py-1 text-xs text-white"
+        className="w-full max-w-none rounded border border-white/30 bg-black px-2 py-2 text-sm text-white lg:max-w-[130px] lg:py-1 lg:text-xs"
         value={selected}
         onChange={(e) => {
           setSelected(e.target.value);

@@ -91,7 +91,13 @@ export default function TenantOnboardingWizard({
     const { error: err } = await apiMutate("/api/v1/lorawan/gateways", "POST", gwForm);
     setBusy(false);
     if (err) {
-      setError(err);
+      if (/duplicate|déjà enregistrée|409/i.test(err)) {
+        setError(
+          `${err} — Cette gateway existe déjà sur le réseau. Si c'est la vôtre, demandez à un administrateur plateforme de la réaffecter à votre tenant, ou utilisez un autre Gateway ID.`
+        );
+      } else {
+        setError(err);
+      }
       return;
     }
     setGwForm({ gatewayId: "", name: "", description: "" });

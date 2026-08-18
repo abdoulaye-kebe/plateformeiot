@@ -138,7 +138,7 @@ export default function CustomDashboardView({ dashboardId }: { dashboardId: stri
                 {traffic.slice(-8).map((p) => (
                   <li key={p.bucket} className="flex justify-between">
                     <span>{new Date(p.bucket).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
-                    <span>{p.uplinkCount} uplinks{p.avgRssi != null ? ` · RSSI ${p.avgRssi.toFixed(0)}` : ""}</span>
+                    <span>{p.uplinkCount} uplinks{Number.isFinite(Number(p.avgRssi)) ? ` · RSSI ${Number(p.avgRssi).toFixed(0)}` : ""}</span>
                   </li>
                 ))}
               </ul>
@@ -156,8 +156,8 @@ export default function CustomDashboardView({ dashboardId }: { dashboardId: stri
                 <p className="font-mono text-xs text-gray-500">{r.devEui}</p>
                 <p className="mt-1 text-sm text-gray-700">
                   {r.uplinkCount} uplinks
-                  {r.avgRssi != null ? ` · RSSI ${r.avgRssi.toFixed(1)} dBm` : ""}
-                  {r.avgSnr != null ? ` · SNR ${r.avgSnr.toFixed(1)}` : ""}
+                  {Number.isFinite(Number(r.avgRssi)) ? ` · RSSI ${Number(r.avgRssi).toFixed(1)} dBm` : ""}
+                  {Number.isFinite(Number(r.avgSnr)) ? ` · SNR ${Number(r.avgSnr).toFixed(1)}` : ""}
                 </p>
               </li>
             ))}

@@ -39,6 +39,7 @@ type Deps struct {
 	CustomDashboards     *store.CustomDashboardStore
 	Connectors           *store.ConnectorStore
 	Decoders             *store.DecoderStore
+	AgentConfig          *store.AgentConfigStore
 	Auth                 *auth.Validator
 	TenantID             string
 	ChirpStackRESTURL    string
@@ -76,6 +77,11 @@ func NewRouter(deps Deps) http.Handler {
 
 		r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Post("/agent/chat", deps.agentChatWithLicense)
 		r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/agent/tools", deps.agentToolsWithLicense)
+		r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/agent/config", deps.getAgentConfig)
+		r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Put("/agent/config", deps.putAgentConfig)
+		r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Post("/agent/custom-tools", deps.createAgentCustomTool)
+		r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Put("/agent/custom-tools/{id}", deps.updateAgentCustomTool)
+		r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Delete("/agent/custom-tools/{id}", deps.deleteAgentCustomTool)
 
 		r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Get("/tenants", deps.listTenants)
 		r.With(auth.RequireRoles("platform-admin")).Post("/tenants", deps.createTenant)
@@ -93,6 +99,7 @@ func NewRouter(deps Deps) http.Handler {
 			r.Get("/applications", deps.listApplications)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/applications", deps.createApplication)
 			r.Get("/device-profiles", deps.listDeviceProfiles)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/device-profiles", deps.createDeviceProfile)
 
 			r.Get("/devices", deps.listDevices)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/devices", deps.createDevice)

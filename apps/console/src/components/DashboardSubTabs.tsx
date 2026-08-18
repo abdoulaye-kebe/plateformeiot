@@ -44,7 +44,8 @@ export default function DashboardSubTabs() {
         ))}
 
         <Link href="/dashboards/new" className={onNew ? "sub-tab-add sub-tab-add-active" : "sub-tab-add"}>
-          + Add a custom dashboard
+          <span className="sm:hidden">+ Dashboard</span>
+          <span className="hidden sm:inline">+ Add a custom dashboard</span>
         </Link>
       </div>
     </div>

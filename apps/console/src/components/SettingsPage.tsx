@@ -115,6 +115,15 @@ export default function SettingsPage() {
           </>
         )}
 
+        <Section title="Agent IA">
+          <p className="mb-3 text-sm text-gray-700">
+            Personnalisez le prompt, les suggestions, les outils MCP autorisés et vos outils HTTP métier.
+          </p>
+          <Link href="/settings/agent" className="text-sm font-medium text-brand hover:underline">
+            Configuration agent →
+          </Link>
+        </Section>
+
         <Section title="Intégrations">
           <p className="mb-3 text-sm text-gray-700">
             Connecteurs HTTP/HTTPS et MQTT/MQTTS vers vos applications métier — chaque uplink LoRaWAN est transmis automatiquement.

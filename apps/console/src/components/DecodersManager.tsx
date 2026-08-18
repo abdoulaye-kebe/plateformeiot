@@ -5,6 +5,7 @@ import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { Section, EmptyState, BtnPrimary } from "@/components/ui";
 import { testDecodeUplink } from "@/lib/codecTest";
+import { profileId, profileLabel, type ProfileRow } from "@/lib/lorawanProfiles";
 
 type Decoder = {
   id: string;
@@ -15,11 +16,6 @@ type Decoder = {
   downlinkFPort: number;
   deviceProfileId?: string;
   updatedAt: string;
-};
-
-type ProfileRow = {
-  id?: string;
-  deviceProfile?: { id?: string; name?: string; payloadCodecRuntime?: string };
 };
 
 type TemplateInfo = {
@@ -262,13 +258,6 @@ function decodeUplink(input) {
         : "Codec appliqué au device profile sélectionné."
     );
     load();
-  }
-
-  function profileLabel(row: ProfileRow) {
-    const id = row.deviceProfile?.id ?? row.id ?? "";
-    const name = row.deviceProfile?.name ?? id;
-    const runtime = row.deviceProfile?.payloadCodecRuntime;
-    return runtime ? `${name} (${runtime})` : name;
   }
 
   const editing = isNew || !!selectedId;

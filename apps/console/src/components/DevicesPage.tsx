@@ -6,6 +6,7 @@ import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import DevicesShell from "@/components/DevicesShell";
 import { CopyIcon, DeviceStatusDot } from "@/components/DataShell";
+import { profileId, profileLabel, type ProfileRow } from "@/lib/lorawanProfiles";
 import { PageHeader, RoleBanner, EmptyState } from "@/components/ui";
 
 type LorawanMeta = {
@@ -25,7 +26,6 @@ type DeviceRow = {
 };
 
 type AppRow = { id?: string; application?: { id?: string; name?: string } };
-type ProfileRow = { id?: string; deviceProfile?: { id?: string; name?: string } };
 
 export default function DevicesPage() {
   const { write, viewerOnly } = useClientAuth();
@@ -173,14 +173,22 @@ export default function DevicesPage() {
             <select className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm" value={form.deviceProfileId} onChange={(e) => setForm({ ...form, deviceProfileId: e.target.value })} required>
               <option value="">Device profile…</option>
               {profiles.map((p) => {
-                const id = p.deviceProfile?.id ?? p.id ?? "";
+                const id = profileId(p);
                 return (
                   <option key={id} value={id}>
-                    {p.deviceProfile?.name ?? id}
+                    {profileLabel(p)}
                   </option>
                 );
               })}
             </select>
+            {write && (
+              <p className="text-xs text-gray-500 sm:col-span-2">
+                Pas de profil ?{" "}
+                <Link href="/device-profiles" className="text-brand hover:underline">
+                  Créer un device profile →
+                </Link>
+              </p>
+            )}
             <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm sm:col-span-2" placeholder="App EUI / JoinEUI (16 hex, OTAA)" value={form.joinEui} onChange={(e) => setForm({ ...form, joinEui: e.target.value })} />
             <input className="rounded-lg border border-gray-300 bg-neutral-100 px-3 py-2 text-sm sm:col-span-2 font-mono" placeholder="AppKey (32 hex, OTAA)" value={form.appKey} onChange={(e) => setForm({ ...form, appKey: e.target.value })} />
             <p className="sm:col-span-2 text-xs text-gray-500">

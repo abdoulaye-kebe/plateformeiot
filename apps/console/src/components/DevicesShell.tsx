@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const DEVICE_NAV = [
   { href: "/devices", label: "All devices" },
+  { href: "/device-profiles", label: "Device profiles" },
   { href: "/applications", label: "Applications" },
   { href: "/fuota", label: "Firmware OTA (FUOTA)" },
 ];

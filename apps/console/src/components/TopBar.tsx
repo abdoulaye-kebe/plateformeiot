@@ -26,17 +26,19 @@ export default function TopBar({ userEmail }: TopBarProps) {
   }, []);
 
   return (
-    <div className="flex items-center justify-between bg-black px-4 py-1.5 text-[11px] text-white/80">
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <span>Sonatel · Orange IoT</span>
+    <div className="flex items-center justify-between bg-black px-3 py-1.5 text-[11px] text-white/80 sm:px-4">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1">
+        <span className="truncate">Sonatel · Orange IoT</span>
         <span className="hidden text-white/40 sm:inline">|</span>
-        <span className="hidden sm:inline">M2M portal</span>
+        <span className="hidden truncate sm:inline">M2M portal</span>
         <span className="hidden text-white/40 md:inline">|</span>
-        <span className="hidden md:inline">LoRaWAN Platform</span>
+        <span className="hidden truncate md:inline">LoRaWAN Platform</span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-3 pl-2">
         <span className="hidden text-white/60 sm:inline">Local time {now || "—"}</span>
-        {userEmail && <span className="max-w-[120px] truncate text-white/70">{userEmail.split("@")[0]}</span>}
+        {userEmail && (
+          <span className="hidden max-w-[120px] truncate text-white/70 sm:inline">{userEmail.split("@")[0]}</span>
+        )}
       </div>
     </div>
   );

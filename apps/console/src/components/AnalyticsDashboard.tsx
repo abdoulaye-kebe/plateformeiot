@@ -57,7 +57,7 @@ export default function AnalyticsDashboard({ embedded = false }: { embedded?: bo
               {traffic.slice(-12).map((p) => (
                 <li key={p.bucket} className="flex justify-between text-gray-700">
                   <span>{new Date(p.bucket).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
-                  <span>{p.uplinkCount} uplinks {p.avgRssi != null ? `· RSSI ${p.avgRssi.toFixed(0)}` : ""}</span>
+                  <span>{p.uplinkCount} uplinks {Number.isFinite(Number(p.avgRssi)) ? `· RSSI ${Number(p.avgRssi).toFixed(0)}` : ""}</span>
                 </li>
               ))}
             </ul>

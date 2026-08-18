@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/lorawan-platform/platform-api/internal/store"
 )
 
 func (d Deps) listApplications(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +40,43 @@ func (d Deps) listDeviceProfiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, data)
+}
+
+type createDeviceProfileRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+func (d Deps) createDeviceProfile(w http.ResponseWriter, r *http.Request) {
+	if !d.canWriteLoRaWAN(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	var req createDeviceProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	csTenant := d.effectiveTenantID(r)
+	if csTenant == "" {
+		writeError(w, http.StatusBadRequest, "chirpstack tenant not configured")
+		return
+	}
+	desc := strings.TrimSpace(req.Description)
+	if desc == "" {
+		desc = "Profil EU868 OTAA — créé depuis la console"
+	}
+	data, err := d.ChirpStack.CreateDeviceProfile(r.Context(), csTenant, req.Name, desc)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, data)
 }
 
 type createApplicationRequest struct {
@@ -216,8 +255,13 @@ func (d Deps) createGateway(w http.ResponseWriter, r *http.Request) {
 	if !d.checkGatewayQuota(w, r) {
 		return
 	}
-	data, err := d.ChirpStack.CreateGateway(r.Context(), d.effectiveTenantID(r), req.GatewayID, req.Name, req.Description)
+	csTenant := d.effectiveTenantID(r)
+	data, created, err := d.ensureGateway(r, csTenant, req)
 	if err != nil {
+		if errors.Is(err, errGatewayOwnedByOtherTenant) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
@@ -241,7 +285,80 @@ func (d Deps) createGateway(w http.ResponseWriter, r *http.Request) {
 	}
 	d.registerGatewayForTenant(r, req.GatewayID)
 	enrichGatewayResponse(data)
-	writeJSON(w, http.StatusCreated, data)
+	if created {
+		writeJSON(w, http.StatusCreated, data)
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+var errGatewayOwnedByOtherTenant = errors.New("cette gateway est déjà enregistrée pour un autre client — contactez l'administrateur plateforme pour la réaffecter")
+
+func isChirpStackDuplicateErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "already exists") ||
+		strings.Contains(msg, "gateway_pkey")
+}
+
+func (d Deps) ensureGateway(r *http.Request, csTenant string, req createGatewayRequest) (data map[string]any, created bool, err error) {
+	data, err = d.ChirpStack.CreateGateway(r.Context(), csTenant, req.GatewayID, req.Name, req.Description)
+	if err == nil {
+		return data, true, nil
+	}
+	if !isChirpStackDuplicateErr(err) {
+		return nil, false, err
+	}
+
+	existing, getErr := d.ChirpStack.GetGateway(r.Context(), req.GatewayID)
+	if getErr != nil {
+		return nil, false, err
+	}
+	gwTenant := strings.ToLower(extractGatewayTenantID(existing))
+	targetTenant := strings.ToLower(csTenant)
+
+	updates := map[string]any{"name": req.Name}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+
+	if gwTenant != "" && gwTenant != targetTenant {
+		if !d.canReassignGateway(r, req.GatewayID, gwTenant) {
+			return nil, false, errGatewayOwnedByOtherTenant
+		}
+		updates["tenantId"] = csTenant
+	}
+
+	data, err = d.ChirpStack.UpdateGateway(r.Context(), req.GatewayID, updates)
+	if err != nil {
+		return nil, false, errors.New("gateway déjà existante — mise à jour impossible: " + err.Error())
+	}
+	return data, false, nil
+}
+
+func (d Deps) canReassignGateway(r *http.Request, gatewayID, currentCSTenant string) bool {
+	if d.isPlatformAdminUser(r) {
+		return true
+	}
+	platformTenant, ok := d.platformTenantID(r.Context(), r)
+	if !ok {
+		return false
+	}
+	mapped, err := d.TenantResources.TenantIDByGateway(r.Context(), gatewayID)
+	if err == nil {
+		return mapped == *platformTenant
+	}
+	if !errors.Is(err, store.ErrTenantResourceNotFound) {
+		return false
+	}
+	owner, err := d.TenantResources.TenantIDByChirpStackTenant(r.Context(), currentCSTenant)
+	if errors.Is(err, store.ErrTenantResourceNotFound) {
+		return true
+	}
+	return owner == *platformTenant
 }
 
 type updateGatewayRequest struct {

@@ -139,7 +139,9 @@ export default function ClientDashboard() {
     { label: "Gateways actifs", value: overview?.activeGateways24h ?? 0, bars: [0, 0, 0, overview?.activeGateways24h ?? 0, 0, 0, 0], href: "/gateways" },
     {
       label: "RSSI moyen",
-      value: overview?.avgRssi24h != null ? `${overview.avgRssi24h.toFixed(1)} dBm` : "—",
+      value: overview?.avgRssi24h != null && Number.isFinite(Number(overview.avgRssi24h))
+        ? `${Number(overview.avgRssi24h).toFixed(1)} dBm`
+        : "—",
       bars: [20, 40, 30, 50, 35, 45, 25],
     },
     { label: "Tenant", value: tenant?.name ?? "—", bars: [10, 10, 10, 10, 10, 10, 10], text: true },

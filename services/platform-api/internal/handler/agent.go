@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lorawan-platform/platform-api/internal/auth"
+	"github.com/lorawan-platform/platform-api/internal/store"
 )
 
 func agentBaseURL() string {
@@ -20,6 +21,30 @@ func agentBaseURL() string {
 
 type agentChatRequest struct {
 	Message string `json:"message"`
+}
+
+type agentTenantConfigPayload struct {
+	DisplayName         string                   `json:"displayName"`
+	SystemPrompt        string                   `json:"systemPrompt"`
+	WelcomeMessage      string                   `json:"welcomeMessage"`
+	Suggestions         []string                 `json:"suggestions"`
+	EnabledBuiltinTools []string                 `json:"enabledBuiltinTools,omitempty"`
+	CustomTools         []storeAgentCustomTool   `json:"customTools"`
+}
+
+type storeAgentCustomTool struct {
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	HTTPMethod   string          `json:"httpMethod"`
+	URLTemplate  string          `json:"urlTemplate"`
+	Headers      json.RawMessage `json:"headers"`
+	BodyTemplate *string         `json:"bodyTemplate,omitempty"`
+	Parameters   json.RawMessage `json:"parameters"`
+}
+
+type agentChatProxyRequest struct {
+	Message      string                    `json:"message"`
+	TenantConfig *agentTenantConfigPayload `json:"tenantConfig,omitempty"`
 }
 
 type agentChatResponse struct {
@@ -35,7 +60,33 @@ func (d Deps) agentChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, _ := json.Marshal(req)
+	proxy := agentChatProxyRequest{Message: req.Message}
+	if tid, ok := d.platformTenantID(r.Context(), r); ok && d.AgentConfig != nil {
+		if resolved, err := d.resolveAgentConfigForTenant(r.Context(), *tid); err == nil {
+			custom := make([]storeAgentCustomTool, 0, len(resolved.CustomTools))
+			for _, t := range resolved.CustomTools {
+				custom = append(custom, storeAgentCustomTool{
+					Name:         t.Name,
+					Description:  t.Description,
+					HTTPMethod:   t.HTTPMethod,
+					URLTemplate:  t.URLTemplate,
+					Headers:      t.Headers,
+					BodyTemplate: t.BodyTemplate,
+					Parameters:   t.Parameters,
+				})
+			}
+			proxy.TenantConfig = &agentTenantConfigPayload{
+				DisplayName:         resolved.DisplayName,
+				SystemPrompt:        resolved.SystemPrompt,
+				WelcomeMessage:      resolved.WelcomeMessage,
+				Suggestions:         resolved.Suggestions,
+				EnabledBuiltinTools: resolved.EnabledBuiltinTools,
+				CustomTools:         custom,
+			}
+		}
+	}
+
+	body, _ := json.Marshal(proxy)
 	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, agentBaseURL()+"/api/v1/chat", bytes.NewReader(body))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -72,6 +123,13 @@ func (d Deps) agentChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d Deps) agentTools(w http.ResponseWriter, r *http.Request) {
+	var resolved store.AgentResolvedConfig
+	if tid, ok := d.platformTenantID(r.Context(), r); ok && d.AgentConfig != nil {
+		if cfg, err := d.resolveAgentConfigForTenant(r.Context(), *tid); err == nil {
+			resolved = cfg
+		}
+	}
+
 	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, agentBaseURL()+"/api/v1/tools", nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -79,6 +137,11 @@ func (d Deps) agentTools(w http.ResponseWriter, r *http.Request) {
 	}
 	if csTenant := d.effectiveTenantID(r); csTenant != "" {
 		httpReq.Header.Set("X-ChirpStack-Tenant-Id", csTenant)
+	}
+	if resolved.SystemPrompt != "" {
+		if cfgJSON, err := json.Marshal(resolved); err == nil {
+			httpReq.Header.Set("X-Tenant-Agent-Config", string(cfgJSON))
+		}
 	}
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(httpReq)
@@ -88,9 +151,23 @@ func (d Deps) agentTools(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(raw)
+	if resp.StatusCode >= 400 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(raw)
+		return
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		writeError(w, http.StatusBadGateway, "invalid agent response")
+		return
+	}
+	if resolved.WelcomeMessage != "" {
+		out["welcomeMessage"] = resolved.WelcomeMessage
+		out["suggestions"] = resolved.Suggestions
+		out["displayName"] = resolved.DisplayName
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func joinRoles(roles []string) string {

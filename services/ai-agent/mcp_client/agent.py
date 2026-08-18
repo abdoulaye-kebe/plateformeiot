@@ -9,9 +9,11 @@ from typing import Any
 
 from fastmcp import Client
 
+from mcp_client.custom_tools import custom_tool_to_openai_schema, run_custom_http_tool
 from mcp_client.formatters import format_tool_result
 from mcp_client.llm import create_llm_client
 from mcp_client.nlp_router import route_natural_language
+from mcp_client.tenant_config import TenantAgentConfig
 
 SYSTEM_PROMPT = """Tu es l'agent IA de la plateforme LoRaWAN SaaS (ChirpStack).
 Tu disposes d'outils MCP pour lire/écrire gateways & devices, métriques radio (RSSI, SNR, SF/DR), events, diagnostics
@@ -59,6 +61,7 @@ class LoRaWANAgent:
         self.llm: Any = None
         self._llm_error: str | None = None
         self._last_form: str | None = None
+        self._tenant_config: TenantAgentConfig | None = None
         try:
             self.llm, default_model = create_llm_client()
             if not model:
@@ -70,13 +73,44 @@ class LoRaWANAgent:
         if self.verbose:
             print(msg, flush=True)
 
-    async def list_tools(self) -> list[dict[str, Any]]:
+    def set_tenant_config(self, config: TenantAgentConfig | None) -> None:
+        self._tenant_config = config
+
+    def _system_prompt(self) -> str:
+        if self._tenant_config and self._tenant_config.system_prompt.strip():
+            return self._tenant_config.system_prompt.strip()
+        return SYSTEM_PROMPT
+
+    async def list_tools(self, tenant_config: TenantAgentConfig | None = None) -> list[dict[str, Any]]:
+        cfg = tenant_config or self._tenant_config
+        out: list[dict[str, Any]] = []
         async with Client(self.mcp_url) as client:
             tools = await client.list_tools()
-            return [{"name": t.name, "description": t.description} for t in tools]
+            for t in tools:
+                if cfg and not cfg.builtin_allowed(t.name):
+                    continue
+                out.append({"name": t.name, "description": t.description, "kind": "mcp"})
+        if cfg:
+            for t in cfg.custom_tools:
+                if not t.get("name"):
+                    continue
+                out.append(
+                    {
+                        "name": t["name"],
+                        "description": t.get("description") or "",
+                        "kind": "custom",
+                    }
+                )
+        return out
 
-    async def ask(self, question: str, max_tool_rounds: int = 8) -> str:
+    async def ask(
+        self,
+        question: str,
+        max_tool_rounds: int = 8,
+        tenant_config: TenantAgentConfig | None = None,
+    ) -> str:
         self._last_form = None
+        self._tenant_config = tenant_config or self._tenant_config
         if self.provider == "ollama":
             return await self._ask_ollama_hybrid(question, max_tool_rounds)
         if not self.llm:
@@ -85,7 +119,7 @@ class LoRaWANAgent:
 
     async def _ask_openai_tools(self, question: str, max_tool_rounds: int) -> str:
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": self._system_prompt()},
             {"role": "user", "content": question},
         ]
 
@@ -125,17 +159,28 @@ class LoRaWANAgent:
                 if name == "__hint__":
                     self._last_form = args.get("_form")
                     return str(args.get("message", ""))
-                intent = args.pop("_intent", None)
-                self._log(f"→ MCP direct (sans LLM) : {name}")
-                result = await self._run_tool(client, name, args)
-                return format_tool_result(name, result, intent=intent)
+                if self._tenant_config and not self._tenant_config.builtin_allowed(name):
+                    routed = None
+                else:
+                    intent = args.pop("_intent", None)
+                    self._log(f"→ MCP direct (sans LLM) : {name}")
+                    result = await self._run_tool(client, name, args)
+                    return format_tool_result(name, result, intent=intent)
 
             if not self.llm:
                 return await self._fallback_without_llm(question)
 
             self._log(f"→ Planification Ollama ({self.model}) …")
             tools = await client.list_tools()
-            tool_catalog = "\n".join(f"- {t.name}: {t.description}" for t in tools)
+            catalog_lines = []
+            for t in tools:
+                if self._tenant_config and not self._tenant_config.builtin_allowed(t.name):
+                    continue
+                catalog_lines.append(f"- {t.name}: {t.description}")
+            if self._tenant_config:
+                for ct in self._tenant_config.custom_tools:
+                    catalog_lines.append(f"- {ct.get('name')}: {ct.get('description')}")
+            tool_catalog = "\n".join(catalog_lines)
             messages = [
                 {"role": "system", "content": PLANNER_PROMPT.format(tools=tool_catalog)},
                 {"role": "user", "content": question},
@@ -193,7 +238,7 @@ class LoRaWANAgent:
             final = self.llm.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": self._system_prompt()},
                     {"role": "user", "content": summary_prompt},
                 ],
                 temperature=0.3,
@@ -203,6 +248,14 @@ class LoRaWANAgent:
             return f"{fallback}\n\n(Synthèse LLM indisponible: {exc})"
 
     async def _run_tool(self, client: Client, name: str, args: dict[str, Any]) -> str:
+        custom = self._tenant_config.custom_by_name() if self._tenant_config else {}
+        if name in custom:
+            try:
+                return await run_custom_http_tool(custom[name], args)
+            except Exception as exc:  # noqa: BLE001
+                return json.dumps({"error": str(exc)}, ensure_ascii=False)
+        if self._tenant_config and not self._tenant_config.builtin_allowed(name):
+            return json.dumps({"error": f"outil {name} non autorisé pour ce tenant"}, ensure_ascii=False)
         try:
             result = await client.call_tool(name, args)
             if result.content:
@@ -213,17 +266,24 @@ class LoRaWANAgent:
 
     async def _openai_tools(self, client: Client) -> list[dict[str, Any]]:
         tools = await client.list_tools()
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "parameters": tool.inputSchema or {"type": "object", "properties": {}},
-                },
-            }
-            for tool in tools
-        ]
+        out = []
+        for tool in tools:
+            if self._tenant_config and not self._tenant_config.builtin_allowed(tool.name):
+                continue
+            out.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description or "",
+                        "parameters": tool.inputSchema or {"type": "object", "properties": {}},
+                    },
+                }
+            )
+        if self._tenant_config:
+            for ct in self._tenant_config.custom_tools:
+                out.append(custom_tool_to_openai_schema(ct))
+        return out
 
     async def _fallback_with_client(
         self, client: Client, question: str, ollama_error: str | None = None

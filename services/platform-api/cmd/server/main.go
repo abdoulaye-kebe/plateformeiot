@@ -46,6 +46,7 @@ func main() {
 	customDashboardStore := store.NewCustomDashboardStore(db)
 	connectorStore := store.NewConnectorStore(db)
 	decoderStore := store.NewDecoderStore(db)
+	agentConfigStore := store.NewAgentConfigStore(db)
 	csClient := chirpstack.NewClient(cfg.ChirpStackRESTURL, cfg.ChirpStackAPIToken)
 	kcClient := keycloak.NewClient(keycloak.Config{
 		AdminURL:  cfg.KeycloakAdminURL,
@@ -96,6 +97,7 @@ func main() {
 		CustomDashboards:     customDashboardStore,
 		Connectors:           connectorStore,
 		Decoders:             decoderStore,
+		AgentConfig:          agentConfigStore,
 		Auth:                 validator,
 		ChirpStack:           csClient,
 		TenantID:             cfg.ChirpStackTenantID,

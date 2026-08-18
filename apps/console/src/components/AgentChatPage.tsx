@@ -14,20 +14,18 @@ type Message = {
   form?: FormKind;
   formDone?: boolean;
 };
-type Tool = { name: string; description: string };
+type Tool = { name: string; description: string; kind?: string };
 
 const HEX16 = /^[0-9a-fA-F]{16}$/;
 const HEX32 = /^[0-9a-fA-F]{32}$/;
 
-const SUGGESTIONS = [
+const DEFAULT_WELCOME =
+  "Bonjour ! Je suis votre assistant IoT LoRaWAN. Posez-moi des questions sur le réseau, les devices et les gateways.";
+
+const DEFAULT_SUGGESTIONS = [
   "Donne-moi une vue d'ensemble du réseau",
-  "Combien de gateways avons-nous ?",
-  "Liste les compteurs d'eau",
-  "Quel est l'index du compteur 8254812510001415 ?",
-  "Ferme la vanne du compteur 8254812510001415",
-  "Ouvre la vanne du compteur 8254812510001415",
-  "Intervalle de relevé 1 h pour 8254812510001415",
-  "Quels devices ont une batterie faible ?",
+  "Liste les devices",
+  "Liste les gateways",
 ];
 
 function DeviceForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (cmd: string) => void }) {
@@ -93,21 +91,30 @@ function GatewayForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (cmd
 }
 
 export default function AgentChatPage() {
-  const { write } = useClientAuth();
+  const { write, isTenantAdmin } = useClientAuth();
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Bonjour ! Je suis votre agent LoRaWAN. Je peux lister et diagnostiquer le réseau, lire les compteurs d'eau (index m³, batterie, vanne) et **envoyer des commandes downlink** : ouvrir/fermer la vanne, télérelevé forcé, intervalle de rapport.\n\nExemples : « Ferme la vanne du compteur 8254812510001415 » · « Intervalle 1 h pour 8254812510001415 ».\n\nPour définir la fréquence de relevé avec précision (secondes, minutes ou heures), utilisez la page **Compteurs eau** (menu Data).\n\nDites « ajoute un device » pour un formulaire guidé. Pour supprimer, ajoutez **confirm** à la fin.",
-    },
+    { role: "assistant", content: DEFAULT_WELCOME },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const [displayName, setDisplayName] = useState("Agent IA LoRaWAN");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    apiFetch<{ tools: Tool[] }>("/api/v1/agent/tools").then((d) => setTools(d?.tools ?? []));
+    apiFetch<{ tools: Tool[]; welcomeMessage?: string; suggestions?: string[]; displayName?: string }>(
+      "/api/v1/agent/tools"
+    ).then((d) => {
+      setTools(d?.tools ?? []);
+      if (d?.welcomeMessage) {
+        setMessages([{ role: "assistant", content: d.welcomeMessage }]);
+      } else {
+        setMessages([{ role: "assistant", content: DEFAULT_WELCOME }]);
+      }
+      if (Array.isArray(d?.suggestions) && d.suggestions.length) setSuggestions(d.suggestions);
+      if (d?.displayName) setDisplayName(d.displayName);
+    });
   }, []);
 
   useEffect(() => {
@@ -143,10 +150,18 @@ export default function AgentChatPage() {
     <div className="flex h-full min-h-[calc(100vh-0px)]">
       <div className="flex flex-1 flex-col p-8">
         <PageHeader
-          title="Agent IA LoRaWAN"
-          subtitle="Assistant intelligent — CRUD réseau, diagnostics, métriques radio (MCP + Ollama)"
+          title={displayName}
+          subtitle="Assistant intelligent — outils MCP + HTTP personnalisés (Ollama local)"
         />
         <RoleBanner />
+
+        {isTenantAdmin && (
+          <p className="mb-4 text-sm text-gray-600">
+            <Link href="/settings/agent" className="text-brand hover:underline">
+              Configurer l&apos;agent (prompt, outils MCP, outils HTTP) →
+            </Link>
+          </p>
+        )}
 
         {!write && (
           <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-950/20 p-3 text-sm text-sky-200">
@@ -164,7 +179,7 @@ export default function AgentChatPage() {
         )}
 
         <div className="mb-4 flex flex-wrap gap-2">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               type="button"
@@ -241,8 +256,11 @@ export default function AgentChatPage() {
           <ul className="max-h-[70vh] space-y-2 overflow-y-auto text-xs text-gray-600">
             {tools.map((t) => (
               <li key={t.name} className="rounded border border-gray-200 p-2">
-                <p className="font-mono text-brand">{t.name}</p>
-                <p className="mt-1 text-gray-500">{t.description?.slice(0, 80)}…</p>
+                <p className="font-mono text-brand">
+                  {t.name}
+                  {t.kind === "custom" && <span className="ml-1 text-[10px] text-orange-600">HTTP</span>}
+                </p>
+                <p className="mt-1 text-gray-500">{(t.description ?? "").slice(0, 80)}{(t.description ?? "").length > 80 ? "…" : ""}</p>
               </li>
             ))}
           </ul>
