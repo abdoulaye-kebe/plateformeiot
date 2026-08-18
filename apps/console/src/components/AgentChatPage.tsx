@@ -100,10 +100,11 @@ export default function AgentChatPage() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const [displayName, setDisplayName] = useState("Agent IA LoRaWAN");
+  const [vertical, setVertical] = useState<string>("generic");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    apiFetch<{ tools: Tool[]; welcomeMessage?: string; suggestions?: string[]; displayName?: string }>(
+    apiFetch<{ tools: Tool[]; welcomeMessage?: string; suggestions?: string[]; displayName?: string; vertical?: string }>(
       "/api/v1/agent/tools"
     ).then((d) => {
       setTools(d?.tools ?? []);
@@ -114,6 +115,7 @@ export default function AgentChatPage() {
       }
       if (Array.isArray(d?.suggestions) && d.suggestions.length) setSuggestions(d.suggestions);
       if (d?.displayName) setDisplayName(d.displayName);
+      if (d?.vertical) setVertical(d.vertical);
     });
   }, []);
 
@@ -169,7 +171,7 @@ export default function AgentChatPage() {
           </div>
         )}
 
-        {write && (
+        {write && vertical === "water" && (
           <p className="mb-4 text-sm text-gray-600">
             Fréquence de relevé manuelle :{" "}
             <Link href="/apps/shengda/water-meters" className="text-brand hover:underline">

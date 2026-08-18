@@ -60,6 +60,7 @@ async def tenant_scope_middleware(request: Request, call_next):
 
 class TenantConfigPayload(BaseModel):
     displayName: str | None = None
+    vertical: str | None = None
     systemPrompt: str | None = None
     welcomeMessage: str | None = None
     suggestions: list[str] = Field(default_factory=list)

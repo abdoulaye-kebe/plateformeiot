@@ -25,6 +25,7 @@ type agentChatRequest struct {
 
 type agentTenantConfigPayload struct {
 	DisplayName         string                   `json:"displayName"`
+	Vertical            string                   `json:"vertical"`
 	SystemPrompt        string                   `json:"systemPrompt"`
 	WelcomeMessage      string                   `json:"welcomeMessage"`
 	Suggestions         []string                 `json:"suggestions"`
@@ -77,6 +78,7 @@ func (d Deps) agentChat(w http.ResponseWriter, r *http.Request) {
 			}
 			proxy.TenantConfig = &agentTenantConfigPayload{
 				DisplayName:         resolved.DisplayName,
+				Vertical:            resolved.Vertical,
 				SystemPrompt:        resolved.SystemPrompt,
 				WelcomeMessage:      resolved.WelcomeMessage,
 				Suggestions:         resolved.Suggestions,
@@ -166,6 +168,7 @@ func (d Deps) agentTools(w http.ResponseWriter, r *http.Request) {
 		out["welcomeMessage"] = resolved.WelcomeMessage
 		out["suggestions"] = resolved.Suggestions
 		out["displayName"] = resolved.DisplayName
+		out["vertical"] = resolved.Vertical
 	}
 	writeJSON(w, http.StatusOK, out)
 }

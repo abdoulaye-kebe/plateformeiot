@@ -24,6 +24,7 @@ var DefaultAgentSuggestions = []string{
 type AgentConfig struct {
 	TenantID            uuid.UUID       `json:"tenantId"`
 	DisplayName         string          `json:"displayName"`
+	Vertical            string          `json:"vertical"`
 	SystemPrompt        *string         `json:"systemPrompt,omitempty"`
 	WelcomeMessage      *string         `json:"welcomeMessage,omitempty"`
 	Suggestions         json.RawMessage `json:"suggestions"`
@@ -48,6 +49,7 @@ type AgentCustomTool struct {
 
 type AgentResolvedConfig struct {
 	DisplayName         string            `json:"displayName"`
+	Vertical            string            `json:"vertical"`
 	SystemPrompt        string            `json:"systemPrompt"`
 	WelcomeMessage      string            `json:"welcomeMessage"`
 	Suggestions         []string          `json:"suggestions"`
@@ -65,7 +67,7 @@ func NewAgentConfigStore(pool *pgxpool.Pool) *AgentConfigStore {
 
 func (s *AgentConfigStore) GetOrCreate(ctx context.Context, tenantID uuid.UUID) (AgentConfig, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT tenant_id, display_name, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
+		SELECT tenant_id, display_name, vertical, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
 		FROM tenant_agent_config WHERE tenant_id = $1
 	`, tenantID)
 	cfg, err := scanAgentConfig(row)
@@ -75,12 +77,18 @@ func (s *AgentConfigStore) GetOrCreate(ctx context.Context, tenantID uuid.UUID) 
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return AgentConfig{}, err
 	}
-	suggestions, _ := json.Marshal(DefaultAgentSuggestions)
+
+	var slug, name string
+	_ = s.pool.QueryRow(ctx, `SELECT slug, name FROM tenants WHERE id = $1`, tenantID).Scan(&slug, &name)
+	tmpl := AgentTemplateForVertical(DetectAgentVertical(slug, name))
+	suggestions := marshalSuggestions(tmpl.Suggestions)
+	sysPrompt := tmpl.SystemPrompt
+
 	row = s.pool.QueryRow(ctx, `
-		INSERT INTO tenant_agent_config (tenant_id, display_name, welcome_message, suggestions)
-		VALUES ($1, 'Agent IA', $2, $3)
-		RETURNING tenant_id, display_name, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
-	`, tenantID, defaultWelcomeMessage, suggestions)
+		INSERT INTO tenant_agent_config (tenant_id, display_name, vertical, system_prompt, welcome_message, suggestions)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING tenant_id, display_name, vertical, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
+	`, tenantID, tmpl.DisplayName, tmpl.Vertical, sysPrompt, tmpl.WelcomeMessage, suggestions)
 	return scanAgentConfig(row)
 }
 
@@ -98,7 +106,7 @@ func (s *AgentConfigStore) Update(ctx context.Context, tenantID uuid.UUID, displ
 			suggestions = EXCLUDED.suggestions,
 			enabled_builtin_tools = EXCLUDED.enabled_builtin_tools,
 			updated_at = NOW()
-		RETURNING tenant_id, display_name, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
+		RETURNING tenant_id, display_name, vertical, system_prompt, welcome_message, suggestions, enabled_builtin_tools, updated_at
 	`, tenantID, displayName, systemPrompt, welcomeMessage, suggestions, enabledBuiltinTools)
 	return scanAgentConfig(row)
 }
@@ -187,6 +195,8 @@ func (s *AgentConfigStore) Resolve(ctx context.Context, tenantID uuid.UUID, defa
 	systemPrompt := defaultSystemPrompt
 	if cfg.SystemPrompt != nil && *cfg.SystemPrompt != "" {
 		systemPrompt = *cfg.SystemPrompt
+	} else if tmpl := AgentTemplateForVertical(cfg.Vertical); tmpl.SystemPrompt != "" {
+		systemPrompt = tmpl.SystemPrompt
 	}
 	welcome := defaultWelcomeMessage
 	if cfg.WelcomeMessage != nil && *cfg.WelcomeMessage != "" {
@@ -203,6 +213,7 @@ func (s *AgentConfigStore) Resolve(ctx context.Context, tenantID uuid.UUID, defa
 	}
 	return AgentResolvedConfig{
 		DisplayName:         cfg.DisplayName,
+		Vertical:            cfg.Vertical,
 		SystemPrompt:        systemPrompt,
 		WelcomeMessage:      welcome,
 		Suggestions:         suggestions,
@@ -213,7 +224,10 @@ func (s *AgentConfigStore) Resolve(ctx context.Context, tenantID uuid.UUID, defa
 
 func scanAgentConfig(row pgx.Row) (AgentConfig, error) {
 	var c AgentConfig
-	err := row.Scan(&c.TenantID, &c.DisplayName, &c.SystemPrompt, &c.WelcomeMessage, &c.Suggestions, &c.EnabledBuiltinTools, &c.UpdatedAt)
+	err := row.Scan(&c.TenantID, &c.DisplayName, &c.Vertical, &c.SystemPrompt, &c.WelcomeMessage, &c.Suggestions, &c.EnabledBuiltinTools, &c.UpdatedAt)
+	if err == nil && c.Vertical == "" {
+		c.Vertical = AgentVerticalGeneric
+	}
 	return c, err
 }
 

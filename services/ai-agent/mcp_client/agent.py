@@ -16,18 +16,18 @@ from mcp_client.nlp_router import route_natural_language
 from mcp_client.tenant_config import TenantAgentConfig
 
 SYSTEM_PROMPT = """Tu es l'agent IA de la plateforme LoRaWAN SaaS (ChirpStack).
-Tu disposes d'outils MCP pour lire/écrire gateways & devices, métriques radio (RSSI, SNR, SF/DR), events, diagnostics
-et télémétrie compteurs d'eau Shengda (index m³, batterie, vanne).
-Pour les compteurs Shengda, send_water_meter_command envoie des downlinks : open/close/dredge/read,
-set_report_interval (600..86400 s) et set_report_hour (0..23).
+Tu disposes d'outils MCP pour lire/écrire gateways & devices, métriques radio (RSSI, SNR, SF/DR), events et diagnostics.
 
 Règles :
 - Réponds en français, concis et actionnable (NOC/SOC).
-- Utilise les outils avant de conclure quand des données réseau ou compteur sont nécessaires.
-- Pour les compteurs d'eau, privilégie get_water_meter_telemetry(dev_eui) en lecture.
-- Pour vanne ou intervalle de relevé, utilise send_water_meter_command avec le DevEUI.
+- Utilise les outils avant de conclure quand des données réseau sont nécessaires.
 - Pour supprimer (delete_*), confirm=true uniquement après accord explicite de l'utilisateur.
 - Cite DevEUI et Gateway ID."""
+
+SHENGDA_PROMPT_ADDON = """
+Outils compteurs d'eau Shengda disponibles : index m³, batterie, vanne, downlinks.
+- Privilégie get_water_meter_telemetry(dev_eui) en lecture.
+- Pour vanne ou intervalle de relevé : send_water_meter_command (open/close/read/set_report_interval/set_report_hour)."""
 
 PLANNER_PROMPT = """Tu es un planificateur d'outils LoRaWAN.
 Analyse la demande utilisateur et réponds UNIQUEMENT avec un JSON valide (sans markdown) :
@@ -79,7 +79,10 @@ class LoRaWANAgent:
     def _system_prompt(self) -> str:
         if self._tenant_config and self._tenant_config.system_prompt.strip():
             return self._tenant_config.system_prompt.strip()
-        return SYSTEM_PROMPT
+        base = SYSTEM_PROMPT
+        if self._tenant_config and self._tenant_config.shengda_tools_enabled():
+            base += SHENGDA_PROMPT_ADDON
+        return base
 
     async def list_tools(self, tenant_config: TenantAgentConfig | None = None) -> list[dict[str, Any]]:
         cfg = tenant_config or self._tenant_config
@@ -309,11 +312,9 @@ class LoRaWANAgent:
 
         return (
             "Commande non reconnue sans LLM. Exemples :\n"
-            "- « liste les devices / gateways / compteurs d'eau »\n"
-            "- « valeur en m3 de la dernière remontée »\n"
-            "- « index du compteur 8254812510001415 »\n"
-            "- « je veux créer un device avec DevEUI: … JoinEUI: … AppKey: … »\n"
-            "- « vue d'ensemble du réseau »"
+            "- « liste les devices / gateways »\n"
+            "- « vue d'ensemble du réseau »\n"
+            "- « je veux créer un device avec DevEUI: … JoinEUI: … AppKey: … »"
         ) + hint
 
     async def _fallback_without_llm(self, question: str) -> str:

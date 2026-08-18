@@ -14,12 +14,7 @@ import (
 	"github.com/lorawan-platform/platform-api/internal/store"
 )
 
-const defaultAgentSystemPrompt = `Tu es l'agent IA LoRaWAN de cette organisation.
-Tu disposes d'outils MCP pour le réseau (devices, gateways, diagnostics, métriques radio)
-et d'outils HTTP personnalisés configurés par le tenant.
-Réponds en français, concis et actionnable.
-Utilise les outils avant de conclure quand des données sont nécessaires.
-Cite DevEUI et Gateway ID quand pertinent.`
+const defaultAgentSystemPrompt = store.DefaultGenericAgentSystemPrompt
 
 var customToolNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{2,48}$`)
 
