@@ -60,7 +60,7 @@ func (h *Handler) Handle(topic string, payload []byte) {
 		return
 	}
 	if strings.Contains(topic, "/gateway/") && strings.HasSuffix(topic, "/event/stats") {
-		h.handleGatewayStats(ctx, payload)
+		h.handleGatewayStats(ctx, topic, payload)
 	}
 }
 
@@ -255,10 +255,10 @@ func (h *Handler) handleDownlinkAck(ctx context.Context, topic string, payload [
 	)
 }
 
-func (h *Handler) handleGatewayStats(ctx context.Context, payload []byte) {
-	var msg gatewayStatsMessage
-	if err := json.Unmarshal(payload, &msg); err != nil {
-		h.logger.Warn("gateway stats parse error", "error", err)
+func (h *Handler) handleGatewayStats(ctx context.Context, topic string, payload []byte) {
+	msg, err := parseGatewayStats(topic, payload)
+	if err != nil {
+		h.logger.Warn("gateway stats parse error", "error", err, "topic", topic)
 		return
 	}
 	ts := time.Now().UTC()
@@ -279,7 +279,9 @@ func (h *Handler) handleGatewayStats(ctx context.Context, payload []byte) {
 	}
 	if err := h.gateways.InsertStats(ctx, row); err != nil {
 		h.logger.Error("insert gateway stats failed", "error", err)
+		return
 	}
+	h.logger.Debug("gateway stats ingested", "gatewayId", gatewayID, "rx", row.RXPacketsReceived)
 }
 
 type uplinkMessage struct {
