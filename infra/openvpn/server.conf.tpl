@@ -19,3 +19,5 @@ persist-tun
 status /pki/openvpn-status.log
 verb 3
 explicit-exit-notify 1
+script-security 2
+up /etc/openvpn/up-relay.sh
