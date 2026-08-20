@@ -99,6 +99,8 @@ services:
         condition: service_started
       shengda-water:
         condition: service_started
+      vpn-pki:
+        condition: service_started
     environment:
       PLATFORM_ADDR: ":8081"
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
@@ -126,6 +128,14 @@ services:
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/billing?paid=1}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/billing}
       CONSOLE_PUBLIC_URL: ${CONSOLE_PUBLIC_URL:-http://localhost:3000}
+      LNS_PUBLIC_HOST: ${LNS_PUBLIC_HOST:-localhost}
+      LNS_SEMTECH_PORT: "1700"
+      LNS_BASIC_STATION_PORT: "3001"
+      OPENVPN_ENABLED: ${OPENVPN_ENABLED:-true}
+      OPENVPN_PUBLIC_HOST: ${OPENVPN_PUBLIC_HOST:-localhost}
+      OPENVPN_PORT: "1194"
+      OPENVPN_TUN_GATEWAY_IP: "10.8.0.1"
+      VPN_PKI_URL: http://vpn-pki:8099
     ports:
       - "8081:8081"
 
@@ -281,7 +291,50 @@ services:
     ports:
       - "3000:3000"
 
+  vpn-pki:
+    build:
+      context: ./services/vpn-pki
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PKI_DIR: /pki/easy-rsa
+      CLIENTS_DIR: /pki/clients
+      LNS_PUBLIC_HOST: ${LNS_PUBLIC_HOST:-localhost}
+      OVPN_PORT: "1194"
+      OVPN_GATEWAY_IP: "10.8.0.1"
+      SEMTECH_PORT: "1700"
+      BASICSTATION_PORT: "3001"
+    volumes:
+      - openvpn-pki-data:/pki
+
+  openvpn-lns:
+    build:
+      context: ./infra/openvpn
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "${OPENVPN_HOST_PORT:-1194}:1194/udp"
+    environment:
+      PKI_DIR: /pki/easy-rsa
+      OVPN_PORT: "1194"
+      OVPN_GATEWAY_IP: "10.8.0.1"
+      SEMTECH_HOST: chirpstack-gateway-bridge
+      SEMTECH_PORT: "1700"
+      BASICSTATION_HOST: chirpstack-gateway-bridge-basicstation
+      BASICSTATION_PORT: "3001"
+    volumes:
+      - openvpn-pki-data:/pki
+    depends_on:
+      - vpn-pki
+      - chirpstack-gateway-bridge
+      - chirpstack-gateway-bridge-basicstation
+
 volumes:
   platform-postgres-data:
   platform-redis-data:
   minio-data:
+  openvpn-pki-data:

@@ -16,6 +16,7 @@ import (
 	"github.com/lorawan-platform/platform-api/internal/keycloak"
 	"github.com/lorawan-platform/platform-api/internal/objectstore"
 	"github.com/lorawan-platform/platform-api/internal/store"
+	"github.com/lorawan-platform/platform-api/internal/vpnpki"
 )
 
 func main() {
@@ -110,6 +111,14 @@ func main() {
 		StripeSuccessURL:     cfg.StripeSuccessURL,
 		StripeCancelURL:      cfg.StripeCancelURL,
 		KeycloakConsoleURL:   cfg.ConsolePublicURL,
+		LNSPublicHost:        cfg.LNSPublicHost,
+		LNSSemtechPort:       cfg.LNSSemtechPort,
+		LNSBasicStationPort:  cfg.LNSBasicStationPort,
+		OpenVPNEnabled:       cfg.OpenVPNEnabled,
+		OpenVPNPublicHost:    cfg.OpenVPNPublicHost,
+		OpenVPNPort:          cfg.OpenVPNPort,
+		OpenVPNTunGatewayIP:  cfg.OpenVPNTunGatewayIP,
+		VpnPKI:               vpnpki.NewClient(cfg.VpnPKIURL),
 	})
 
 	srv := &http.Server{

@@ -16,6 +16,7 @@ import (
 	"github.com/lorawan-platform/platform-api/internal/keycloak"
 	"github.com/lorawan-platform/platform-api/internal/objectstore"
 	"github.com/lorawan-platform/platform-api/internal/store"
+	"github.com/lorawan-platform/platform-api/internal/vpnpki"
 )
 
 type Deps struct {
@@ -51,6 +52,14 @@ type Deps struct {
 	StripeSuccessURL     string
 	StripeCancelURL      string
 	KeycloakConsoleURL   string
+	LNSPublicHost        string
+	LNSSemtechPort       int
+	LNSBasicStationPort  int
+	OpenVPNEnabled       bool
+	OpenVPNPublicHost    string
+	OpenVPNPort          int
+	OpenVPNTunGatewayIP  string
+	VpnPKI               *vpnpki.Client
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -124,6 +133,12 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/rf-scan/request", deps.requestGatewayRfScan)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Get("/gateways/{gatewayId}/rf-scan/pending", deps.getGatewayRfScanPending)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/rf-scan/results", deps.uploadGatewayRfScanResults)
+
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/connectivity", deps.getLnsConnectivity)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/gateways/{gatewayId}/connectivity", deps.getGatewayConnectivity)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/gateways/{gatewayId}/connectivity", deps.updateGatewayConnectivity)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/gateways/{gatewayId}/vpn/profile", deps.issueGatewayVpnProfile)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/gateways/{gatewayId}/vpn/profile", deps.revokeGatewayVpnProfile)
 
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin")).Get("/chirpstack/tenants", deps.listChirpStackTenants)
 		})

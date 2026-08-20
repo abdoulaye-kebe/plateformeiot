@@ -31,6 +31,21 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
   }
 }
 
+export async function apiDownload(path: string, method = "GET"): Promise<{ blob: Blob | null; error?: string }> {
+  try {
+    const headers = authHeaders();
+    headers.delete("Content-Type");
+    const res = await fetch(`${API}${scopedPath(path)}`, { method, headers, cache: "no-store" });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      return { blob: null, error: err || res.statusText };
+    }
+    return { blob: await res.blob() };
+  } catch (e) {
+    return { blob: null, error: e instanceof Error ? e.message : "network error" };
+  }
+}
+
 export async function apiMutate<T = unknown>(path: string, method: string, body?: unknown): Promise<{ data: T | null; error?: string }> {
   try {
     const res = await fetch(`${API}${scopedPath(path)}`, {

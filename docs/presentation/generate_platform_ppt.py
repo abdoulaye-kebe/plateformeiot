@@ -201,7 +201,7 @@ def add_compliance_slide(prs: Presentation) -> None:
 
     rows = [
         ("LNS redondant multi-sites (2–3)", "Requis industriel", "Mono-VM Docker Compose", "Non", RED),
-        ("VPN gateway ↔ LNS + PKI", "Obligatoire", "UDP :1700 ouvert en prod", "Non", RED),
+        ("VPN gateway ↔ LNS + PKI", "Obligatoire", "OpenVPN :1194 + émission .ovpn par gateway (console)", "Oui", GREEN),
         ("HSM / clés FIPS 140", "Recommandé utilities", "Clés ChirpStack, pas de HSM", "Non", RED),
         ("Routage + decoders par route", "Connectors ThingPark", "Connecteurs HTTP/MQTT/MCP + codecs JS", "Oui", GREEN),
         ("Connecteurs HA primaire/secondaire", "Requis", "Un connecteur par tenant", "Partiel", AMBER),

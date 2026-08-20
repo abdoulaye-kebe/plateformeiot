@@ -19,7 +19,9 @@ Ports à ouvrir (pare-feu / security group) :
 | 8081 | TCP | Platform API |
 | 8082 | TCP | Keycloak (auth) |
 | 8080 | TCP | ChirpStack UI (admin) |
-| 1700 | UDP | Gateway LoRaWAN (Packet Forwarder) |
+| 1700 | UDP | Gateway LoRaWAN (Semtech Packet Forwarder) |
+| 3001 | TCP | Gateway LoRaWAN (Basic Station) |
+| 1194 | UDP | OpenVPN — tunnels gateway ↔ LNS (PKI) |
 | 1884 | TCP | MQTT (optionnel, interne) |
 
 ## Installation rapide (automatisée)
@@ -108,6 +110,8 @@ sudo ufw allow 8081/tcp
 sudo ufw allow 8082/tcp
 sudo ufw allow 8080/tcp
 sudo ufw allow 1700/udp
+sudo ufw allow 3001/tcp
+sudo ufw allow 1194/udp
 sudo ufw enable
 ```
 

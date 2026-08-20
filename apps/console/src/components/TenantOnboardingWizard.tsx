@@ -285,7 +285,13 @@ export default function TenantOnboardingWizard({
                     <div className="space-y-3 text-sm text-gray-700">
                       <ol className="list-decimal space-y-2 pl-5">
                         <li>Configurez la gateway physique avec le <strong>Gateway ID</strong> enregistré ci-dessus.</li>
-                        <li>Pointez la gateway vers <code className="rounded bg-gray-100 px-1">{typeof window !== "undefined" ? `${window.location.hostname}:1700` : "<IP_VM>:1700"}</code> (UDP Semtech v2) ou BasicStation sur le port <code className="rounded bg-gray-100 px-1">3001</code>.</li>
+                        <li>Choisissez un mode de connexion LNS (voir fiche gateway) :
+                          <ul className="mt-1 list-disc pl-5 text-gray-600">
+                            <li><strong>Semtech UDP</strong> — <code className="rounded bg-gray-100 px-1">{typeof window !== "undefined" ? `${window.location.hostname}:1700` : "<IP_VM>:1700"}</code></li>
+                            <li><strong>Basic Station</strong> — port <code className="rounded bg-gray-100 px-1">3001</code> (TLS)</li>
+                            <li><strong>OpenVPN</strong> — téléchargez le profil <code className="rounded bg-gray-100 px-1">.ovpn</code> depuis la gateway, puis ciblez le LNS via l&apos;IP tunnel <code className="rounded bg-gray-100 px-1">10.8.0.1</code></li>
+                          </ul>
+                        </li>
                         <li>Activez l&apos;envoi des <strong>statistiques gateway (STATS)</strong> toutes les 30 s — sans cela ChirpStack reste OFFLINE.</li>
                         <li>Provisionnez le device (OTAA/ABP) avec le DevEUI créé sur la plateforme.</li>
                         <li>Envoyez un uplink test — le dashboard affichera les données sous 30 secondes.</li>

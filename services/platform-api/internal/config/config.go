@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +32,14 @@ type Config struct {
 	StripeSuccessURL   string
 	StripeCancelURL    string
 	ConsolePublicURL   string
+	LNSPublicHost      string
+	LNSSemtechPort     int
+	LNSBasicStationPort int
+	OpenVPNEnabled     bool
+	OpenVPNPublicHost  string
+	OpenVPNPort        int
+	OpenVPNTunGatewayIP string
+	VpnPKIURL          string
 }
 
 func Load() Config {
@@ -61,7 +70,24 @@ func Load() Config {
 		StripeSuccessURL:   env("STRIPE_SUCCESS_URL", "http://localhost:3000/billing?paid=1"),
 		StripeCancelURL:    env("STRIPE_CANCEL_URL", "http://localhost:3000/billing"),
 		ConsolePublicURL:   env("CONSOLE_PUBLIC_URL", "http://localhost:3000"),
+		LNSPublicHost:      env("LNS_PUBLIC_HOST", env("CONSOLE_PUBLIC_HOST", "localhost")),
+		LNSSemtechPort:     envInt("LNS_SEMTECH_PORT", 1700),
+		LNSBasicStationPort: envInt("LNS_BASIC_STATION_PORT", 3001),
+		OpenVPNEnabled:     env("OPENVPN_ENABLED", "true") == "true",
+		OpenVPNPublicHost:  env("OPENVPN_PUBLIC_HOST", env("LNS_PUBLIC_HOST", "localhost")),
+		OpenVPNPort:        envInt("OPENVPN_PORT", 1194),
+		OpenVPNTunGatewayIP: env("OPENVPN_TUN_GATEWAY_IP", "10.8.0.1"),
+		VpnPKIURL:          env("VPN_PKI_URL", "http://vpn-pki:8099"),
 	}
+}
+
+func envInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
 }
 
 func env(key, fallback string) string {

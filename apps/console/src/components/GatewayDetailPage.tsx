@@ -7,6 +7,7 @@ import { apiFetch, apiMutate } from "@/lib/api";
 import { useClientAuth } from "@/lib/useClientAuth";
 import { PageHeader, Section, StatusBadge, RoleBanner } from "@/components/ui";
 import GatewayRfScanPanel from "@/components/GatewayRfScanPanel";
+import GatewayConnectivityPanel from "@/components/GatewayConnectivityPanel";
 
 const RF_MODELS = [
   { id: "", label: "— Non compatible —" },
@@ -104,6 +105,10 @@ export default function GatewayDetailPage() {
           </div>
         )}
       </Section>
+
+      <div className="mt-6">
+        <GatewayConnectivityPanel gatewayId={gatewayId} write={write} />
+      </div>
 
       {write && (
         <Section title="Compatibilité scan RF">
