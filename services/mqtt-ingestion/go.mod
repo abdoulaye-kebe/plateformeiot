@@ -3,13 +3,13 @@ module github.com/lorawan-platform/mqtt-ingestion
 go 1.22
 
 require (
-	github.com/chirpstack/chirpstack/api/go/v4 v4.12.0
+	github.com/chirpstack/chirpstack/api/go/v4 v4.10.0
 	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/minio/minio-go/v7 v7.0.82
 	github.com/nats-io/nats.go v1.38.0
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
