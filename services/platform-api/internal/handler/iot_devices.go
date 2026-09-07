@@ -234,6 +234,7 @@ func buildProvisionInfo(d Deps, ep store.DeviceEndpoint, creds map[string]string
 			"endpoint":       ep.ExternalID,
 			"registerUri":    "coaps://" + host + ":" + itoaStr(dtlsPort) + "/rd?ep=" + ep.ExternalID + "&lt=1800&lwm2m=1.1",
 			"pskIdentity":    creds["pskIdentity"],
+			"pskIdentityAlt": creds["pskIdentityAlt"],
 			"psk":            creds["psk"],
 			"pskKeyHex":      creds["psk"],
 			"securityMode":   "dtls-psk",

@@ -70,6 +70,19 @@ func (s *EndpointStore) GetLwM2M(ctx context.Context, endpointName string) (*End
 }
 
 func (s *EndpointStore) LookupLwM2MPSK(ctx context.Context, identity string) ([]byte, error) {
+	for _, candidate := range lwm2mIdentityCandidates(identity) {
+		key, err := s.lookupLwM2MPSKExact(ctx, candidate)
+		if err == nil {
+			return key, nil
+		}
+		if !errors.Is(err, ErrEndpointNotFound) {
+			return nil, err
+		}
+	}
+	return nil, ErrEndpointNotFound
+}
+
+func (s *EndpointStore) lookupLwM2MPSKExact(ctx context.Context, identity string) ([]byte, error) {
 	identity = strings.TrimSpace(identity)
 	if identity == "" {
 		return nil, ErrEndpointNotFound
@@ -91,6 +104,33 @@ func (s *EndpointStore) LookupLwM2MPSK(ctx context.Context, identity string) ([]
 		return nil, ErrEndpointNotFound
 	}
 	return key, nil
+}
+
+func lwm2mIdentityCandidates(identity string) []string {
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 3)
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	add(identity)
+	if strings.HasPrefix(identity, "urn:imei:") {
+		add(strings.TrimPrefix(identity, "urn:imei:"))
+	} else {
+		add("urn:imei:" + identity)
+	}
+	return out
 }
 
 func (s *EndpointStore) TouchLastSeen(ctx context.Context, id uuid.UUID, ts time.Time) error {

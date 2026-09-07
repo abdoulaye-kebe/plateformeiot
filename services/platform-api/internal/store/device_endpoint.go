@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,9 @@ func (s *DeviceEndpointStore) Create(ctx context.Context, in CreateDeviceEndpoin
 	case "lwm2m":
 		creds["pskIdentity"] = in.ExternalID
 		creds["psk"] = randomToken(16)
+		if !strings.HasPrefix(in.ExternalID, "urn:imei:") {
+			creds["pskIdentityAlt"] = "urn:imei:" + in.ExternalID
+		}
 	default:
 		return DeviceEndpoint{}, nil, fmt.Errorf("unsupported protocol: %s", in.Protocol)
 	}
