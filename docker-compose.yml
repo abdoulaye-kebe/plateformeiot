@@ -138,6 +138,7 @@ services:
       VPN_PKI_URL: http://vpn-pki:8099
       CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
       MQTT_PUBLIC_PORT: "${MQTT_IOT_HOST_PORT:-1885}"
+      LWM2M_DTLS_PUBLIC_PORT: "${LWM2M_DTLS_HOST_PORT:-5684}"
     ports:
       - "8081:8081"
 
