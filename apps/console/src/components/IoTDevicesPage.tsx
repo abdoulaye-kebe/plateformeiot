@@ -218,7 +218,7 @@ export default function IoTDevicesPage() {
         <Link href="/devices" className="text-orange-600 underline">
           Devices LoRaWAN
         </Link>
-        . Ouvrez les ports <strong>1884/TCP</strong> (MQTT) et <strong>5683/UDP</strong> (LwM2M) sur votre VM.
+        . Ouvrez les ports <strong>1885/TCP</strong> (MQTT IoT LTE-M) et <strong>5683/UDP</strong> (LwM2M) sur votre VM.
       </p>
     </div>
   );

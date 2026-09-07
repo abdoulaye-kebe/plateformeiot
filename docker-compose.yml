@@ -137,7 +137,7 @@ services:
       OPENVPN_TUN_GATEWAY_IP: "10.8.0.1"
       VPN_PKI_URL: http://vpn-pki:8099
       CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
-      MQTT_PUBLIC_PORT: "1884"
+      MQTT_PUBLIC_PORT: "${MQTT_IOT_HOST_PORT:-1885}"
     ports:
       - "8081:8081"
 
@@ -189,7 +189,7 @@ services:
       nats:
         condition: service_started
     ports:
-      - "${MQTT_IOT_HOST_PORT:-1884}:1884"
+      - "${MQTT_IOT_HOST_PORT:-1885}:1884"
       - "${LWM2M_HOST_PORT:-5683}:5683/udp"
     environment:
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
@@ -197,7 +197,7 @@ services:
       MQTT_LISTEN_ADDR: ":1884"
       LWM2M_LISTEN_ADDR: ":5683"
       CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
-      MQTT_PUBLIC_PORT: "1884"
+      MQTT_PUBLIC_PORT: "${MQTT_IOT_HOST_PORT:-1885}"
 
   rule-engine:
     build:
