@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LoRaWAN SaaS — Orange Live Objects",
-  description: "Portail IoT LoRaWAN Sonatel · Orange — devices, analytics, NOC et IA",
+  title: "Orange IoT Platform — LoRaWAN · MQTT · LwM2M",
+  description: "Portail IoT multiprotocole Sonatel · Orange — LoRaWAN, LTE-M, MQTT, LwM2M",
 };
 
 export const viewport: Viewport = {

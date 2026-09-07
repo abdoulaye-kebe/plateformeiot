@@ -23,9 +23,9 @@ const MAIN_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", roles: ["platform-admin", "tenant-admin", "operator", "viewer"], match: (p) => p === "/" },
   {
     href: "/devices",
-    label: "Devices",
+    label: "Devices LoRaWAN",
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
-    match: (p) => p.startsWith("/devices"),
+    match: (p) => p.startsWith("/devices") || p.startsWith("/device-profiles"),
   },
   {
     href: "/iot-devices",

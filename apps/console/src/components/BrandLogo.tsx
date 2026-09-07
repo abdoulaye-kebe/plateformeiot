@@ -20,8 +20,10 @@ export default function BrandLogo({ variant = "dark", subtitle, compact = false 
         </span>
       </div>
       <div>
-        <p className={`font-bold leading-tight ${productColor} ${compact ? "text-base" : "text-lg"}`}>LoRaWAN SaaS</p>
-        {subtitle && <p className={`text-[10px] uppercase tracking-widest ${subtitleColor}`}>{subtitle}</p>}
+        <p className={`font-bold leading-tight ${productColor} ${compact ? "text-base" : "text-lg"}`}>Orange IoT Platform</p>
+        <p className={`text-[10px] uppercase tracking-widest ${subtitleColor}`}>
+          {subtitle ?? "LoRaWAN · MQTT · LwM2M"}
+        </p>
       </div>
     </div>
   );

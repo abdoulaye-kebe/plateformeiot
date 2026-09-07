@@ -76,11 +76,12 @@ export default function ClientDashboard() {
   const [history, setHistory] = useState<HistoryDay[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [rightTab, setRightTab] = useState<"quota" | "alerts">("quota");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [iotDevices, setIotDevices] = useState(0);
+  const [iotOnline, setIotOnline] = useState(0);
 
   useEffect(() => {
     async function load() {
-      const [status, ov, d, g, a, r, al, t, sub, hist] = await Promise.all([
+      const [status, ov, d, g, a, r, al, t, sub, hist, iot] = await Promise.all([
         apiFetch<{ networkConnected?: boolean }>("/api/v1/status"),
         apiFetch<Overview>("/api/v1/analytics/overview"),
         apiFetch<{ totalCount?: number }>("/api/v1/lorawan/devices?limit=1"),
@@ -91,6 +92,7 @@ export default function ClientDashboard() {
         apiFetch<TenantMe>("/api/v1/tenants/me"),
         apiFetch<SubscriptionResponse>("/api/v1/billing/subscription"),
         apiFetch<{ result?: HistoryDay[] }>("/api/v1/billing/history?days=7"),
+        apiFetch<{ result?: Array<{ status?: string }> }>("/api/v1/iot/devices?limit=100"),
       ]);
       setConnected(status?.networkConnected ?? null);
       setOverview(ov);
@@ -101,6 +103,9 @@ export default function ClientDashboard() {
       setAlerts(al?.alerts ?? []);
       setTenant(t);
       setHistory(hist?.result ?? []);
+      const iotList = iot?.result ?? [];
+      setIotDevices(iotList.length);
+      setIotOnline(iotList.filter((x) => x.status === "online" || x.status === "recent").length);
 
       const plan = sub?.usage?.plan ?? t?.planDetails;
       if (sub?.usage) {
@@ -181,8 +186,9 @@ export default function ClientDashboard() {
           className="lg:col-span-3"
           footer={
             <div className="flex flex-wrap gap-4">
-              <DashboardLink href="/devices">See all devices →</DashboardLink>
-              <DashboardLink href="/gateways">See all gateways →</DashboardLink>
+              <DashboardLink href="/devices">Devices LoRaWAN →</DashboardLink>
+              <DashboardLink href="/iot-devices">IoT LTE-M (MQTT / LwM2M) →</DashboardLink>
+              <DashboardLink href="/gateways">Gateways →</DashboardLink>
             </div>
           }
         >
@@ -270,6 +276,23 @@ export default function ClientDashboard() {
               ))}
             </ul>
           )}
+        </DashboardCard>
+      </div>
+
+      {/* IoT LTE-M — MQTT / LwM2M */}
+      <div className="mt-4">
+        <DashboardCard
+          title="IoT LTE-M (MQTT · LwM2M)"
+          footer={<DashboardLink href="/iot-devices">Provisionner un device LTE-M →</DashboardLink>}
+        >
+          <div className="flex flex-wrap items-center gap-10">
+            <MetricLarge value={iotDevices} label="devices LTE-M" />
+            <MetricLarge value={iotOnline} label="actifs / récents" highlight={iotOnline > 0} />
+            <div className="text-sm text-gray-600">
+              <p>MQTT : <span className="font-mono text-xs">mqtt://…:1885</span></p>
+              <p className="mt-1">LwM2M : <span className="font-mono text-xs">coap://…:5683</span></p>
+            </div>
+          </div>
         </DashboardCard>
       </div>
 

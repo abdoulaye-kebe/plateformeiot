@@ -32,7 +32,7 @@ export default function TopBar({ userEmail }: TopBarProps) {
         <span className="hidden text-white/40 sm:inline">|</span>
         <span className="hidden truncate sm:inline">M2M portal</span>
         <span className="hidden text-white/40 md:inline">|</span>
-        <span className="hidden truncate md:inline">LoRaWAN Platform</span>
+        <span className="hidden truncate md:inline">Orange IoT Platform</span>
       </div>
       <div className="flex shrink-0 items-center gap-3 pl-2">
         <span className="hidden text-white/60 sm:inline">Local time {now || "—"}</span>
