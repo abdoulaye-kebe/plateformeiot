@@ -90,7 +90,7 @@ func (s *Server) handleAny(w mux.ResponseWriter, r *mux.Message) {
 			Endpoint: device,
 			Protocol: "lwm2m",
 			Raw:      body,
-			Metadata: map[string]any{"event": "resource", "path": path, "method": r.Code.String()},
+			Metadata: map[string]any{"event": "resource", "path": path, "method": fmt.Sprintf("%v", r.Code)},
 		})
 	}
 	switch r.Code {

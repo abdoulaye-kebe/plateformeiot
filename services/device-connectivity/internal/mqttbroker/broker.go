@@ -18,9 +18,6 @@ type Broker struct {
 
 func New(addr string, endpoints *store.EndpointStore, processor *ingest.Processor, logger *slog.Logger) (*Broker, error) {
 	srv := mqtt.New(nil)
-	if err := srv.AddHook(new(storage.Hook), nil); err != nil {
-		return nil, err
-	}
 	hook := &authHook{endpoints: endpoints, processor: processor, logger: logger}
 	if err := srv.AddHook(hook, nil); err != nil {
 		return nil, err
@@ -77,7 +74,7 @@ func (h *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 }
 
 func (h *authHook) OnPublished(cl *mqtt.Client, pk packets.Packet) {
-	if !pk.FixedHeader.Type.IsPublish() {
+	if pk.FixedHeader.Type != packets.Publish {
 		return
 	}
 	topic := pk.TopicName
