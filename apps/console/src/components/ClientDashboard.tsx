@@ -76,6 +76,7 @@ export default function ClientDashboard() {
   const [history, setHistory] = useState<HistoryDay[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [rightTab, setRightTab] = useState<"quota" | "alerts">("quota");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [iotDevices, setIotDevices] = useState(0);
   const [iotOnline, setIotOnline] = useState(0);
 

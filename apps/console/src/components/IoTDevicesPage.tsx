@@ -40,7 +40,7 @@ type ProvisionInfo = {
 };
 
 export default function IoTDevicesPage() {
-  const { write, viewerOnly } = useClientAuth();
+  const { write } = useClientAuth();
   const [devices, setDevices] = useState<IoTDevice[]>([]);
   const [connectivity, setConnectivity] = useState<Connectivity | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -93,7 +93,7 @@ export default function IoTDevicesPage() {
         title="Devices LTE-M"
         subtitle="MQTT natif et LwM2M — capteurs IP / cellulaire (distinct des devices LoRaWAN)"
       />
-      <RoleBanner write={write} viewerOnly={viewerOnly} />
+      <RoleBanner />
 
       {connectivity && (
         <div className="grid gap-4 md:grid-cols-2">
