@@ -191,13 +191,16 @@ services:
     ports:
       - "${MQTT_IOT_HOST_PORT:-1885}:1884"
       - "${LWM2M_HOST_PORT:-5683}:5683/udp"
+      - "${LWM2M_DTLS_HOST_PORT:-5684}:5684/udp"
     environment:
       DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
       NATS_URL: nats://nats:4222
       MQTT_LISTEN_ADDR: ":1884"
       LWM2M_LISTEN_ADDR: ":5683"
+      LWM2M_DTLS_LISTEN_ADDR: ":5684"
       CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
       MQTT_PUBLIC_PORT: "${MQTT_IOT_HOST_PORT:-1885}"
+      LWM2M_DTLS_PUBLIC_PORT: "${LWM2M_DTLS_HOST_PORT:-5684}"
 
   rule-engine:
     build:

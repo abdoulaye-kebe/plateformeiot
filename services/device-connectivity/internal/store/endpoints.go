@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,6 +67,30 @@ func (s *EndpointStore) AuthenticateMQTT(ctx context.Context, username, password
 
 func (s *EndpointStore) GetLwM2M(ctx context.Context, endpointName string) (*Endpoint, error) {
 	return s.GetByExternalID(ctx, "lwm2m", endpointName)
+}
+
+func (s *EndpointStore) LookupLwM2MPSK(ctx context.Context, identity string) ([]byte, error) {
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return nil, ErrEndpointNotFound
+	}
+	ep, err := s.GetByExternalID(ctx, "lwm2m", identity)
+	if err != nil {
+		return nil, err
+	}
+	var creds map[string]string
+	if err := json.Unmarshal(ep.Credentials, &creds); err != nil {
+		return nil, ErrEndpointNotFound
+	}
+	pskHex := strings.TrimSpace(creds["psk"])
+	if pskHex == "" {
+		return nil, ErrEndpointNotFound
+	}
+	key, err := hex.DecodeString(pskHex)
+	if err != nil {
+		return nil, ErrEndpointNotFound
+	}
+	return key, nil
 }
 
 func (s *EndpointStore) TouchLastSeen(ctx context.Context, id uuid.UUID, ts time.Time) error {

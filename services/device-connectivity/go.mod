@@ -7,5 +7,6 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/mochi-mqtt/server/v2 v2.6.3
 	github.com/nats-io/nats.go v1.38.0
+	github.com/pion/dtls/v2 v2.2.12
 	github.com/plgd-dev/go-coap/v2 v2.1.3
 )

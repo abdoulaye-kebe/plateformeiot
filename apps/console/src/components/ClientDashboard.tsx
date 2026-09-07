@@ -291,7 +291,7 @@ export default function ClientDashboard() {
             <MetricLarge value={iotOnline} label="actifs / récents" highlight={iotOnline > 0} />
             <div className="text-sm text-gray-600">
               <p>MQTT : <span className="font-mono text-xs">mqtt://…:1885</span></p>
-              <p className="mt-1">LwM2M : <span className="font-mono text-xs">coap://…:5683</span></p>
+              <p className="mt-1">LwM2M : <span className="font-mono text-xs">coaps://…:5684</span></p>
             </div>
           </div>
         </DashboardCard>

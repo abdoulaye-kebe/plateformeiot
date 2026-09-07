@@ -63,6 +63,7 @@ type Deps struct {
 	VpnPKI               *vpnpki.Client
 	CellularPublicHost   string
 	CellularMQTTPort     int
+	CellularLwM2MDTLSPort int
 }
 
 func NewRouter(deps Deps) http.Handler {

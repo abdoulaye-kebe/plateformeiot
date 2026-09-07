@@ -8,5 +8,5 @@ RUN go mod tidy && CGO_ENABLED=0 go build -o /device-connectivity ./cmd/server
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /device-connectivity /device-connectivity
-EXPOSE 1884 5683/udp
+EXPOSE 1884 5683/udp 5684/udp
 ENTRYPOINT ["/device-connectivity"]

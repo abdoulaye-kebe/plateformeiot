@@ -55,16 +55,24 @@ func main() {
 	defer broker.Close()
 
 	go func() {
-		if err := lwm2mserver.Start(cfg.LwM2MAddr, endpoints, processor, logger); err != nil {
-			logger.Error("lwm2m server stopped", "error", err)
+		if err := lwm2mserver.StartUDP(cfg.LwM2MAddr, endpoints, processor, logger); err != nil {
+			logger.Error("lwm2m udp server stopped", "error", err)
+		}
+	}()
+
+	go func() {
+		if err := lwm2mserver.StartDTLS(cfg.LwM2MDTLSAddr, endpoints, processor, logger); err != nil {
+			logger.Error("lwm2m dtls server stopped", "error", err)
 		}
 	}()
 
 	logger.Info("device-connectivity started",
 		"mqtt", cfg.MQTTAddr,
-		"lwm2m", cfg.LwM2MAddr,
+		"lwm2mUdp", cfg.LwM2MAddr,
+		"lwm2mDtls", cfg.LwM2MDTLSAddr,
 		"publicMqtt", cfg.MQTTPublicURL(),
 		"publicLwm2m", cfg.LwM2MPublicURL(),
+		"publicLwm2mDtls", cfg.LwM2MDTLSPublicURL(),
 	)
 	<-ctx.Done()
 	logger.Info("shutting down")

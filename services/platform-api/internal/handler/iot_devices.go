@@ -21,9 +21,10 @@ func (d Deps) getIoTConnectivity(w http.ResponseWriter, r *http.Request) {
 			"username":       "{externalId}",
 		},
 		"lwm2m": map[string]any{
-			"serverUrl": "coap://" + d.CellularPublicHost + ":5683",
-			"endpoint":  "{externalId}",
-			"register":  "POST /rd?ep={externalId}&lt=300&lwm2m=1.0",
+			"serverUrl":    "coaps://" + d.CellularPublicHost + ":" + itoaStr(d.CellularLwM2MDTLSPort),
+			"endpoint":     "{externalId}",
+			"register":     "POST /rd?ep={externalId}&lt=300&lwm2m=1.1",
+			"securityMode": "dtls-psk",
 		},
 	})
 }
@@ -227,13 +228,17 @@ func buildProvisionInfo(d Deps, ep store.DeviceEndpoint, creds map[string]string
 		}
 	}
 	if ep.Protocol == "lwm2m" {
+		dtlsPort := d.CellularLwM2MDTLSPort
 		out["lwm2m"] = map[string]any{
-			"server":         "coap://" + host + ":5683",
+			"server":         "coaps://" + host + ":" + itoaStr(dtlsPort),
 			"endpoint":       ep.ExternalID,
-			"registerUri":    "coap://" + host + ":5683/rd?ep=" + ep.ExternalID + "&lt=300&lwm2m=1.0",
+			"registerUri":    "coaps://" + host + ":" + itoaStr(dtlsPort) + "/rd?ep=" + ep.ExternalID + "&lt=1800&lwm2m=1.1",
 			"pskIdentity":    creds["pskIdentity"],
 			"psk":            creds["psk"],
-			"securityMode":   "no-sec-udp",
+			"pskKeyHex":      creds["psk"],
+			"securityMode":   "dtls-psk",
+			"lifetimeSec":    1800,
+			"bootstrapUri":   "",
 			"examplePayload": `{"3":{"0":{"11":"86"}}}`,
 		}
 	}

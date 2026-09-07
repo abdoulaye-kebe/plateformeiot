@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	piondtls "github.com/pion/dtls/v2"
 	coap "github.com/plgd-dev/go-coap/v2"
 	"github.com/plgd-dev/go-coap/v2/message"
 	"github.com/plgd-dev/go-coap/v2/message/codes"
@@ -25,13 +26,38 @@ type Server struct {
 	registrations sync.Map
 }
 
-func Start(addr string, endpoints *store.EndpointStore, processor *ingest.Processor, logger *slog.Logger) error {
+func StartUDP(addr string, endpoints *store.EndpointStore, processor *ingest.Processor, logger *slog.Logger) error {
 	s := &Server{endpoints: endpoints, processor: processor, logger: logger}
+	logger.Info("lwm2m server listening (NoSec UDP)", "addr", addr)
+	return coap.ListenAndServe("udp", addr, s.router())
+}
+
+func StartDTLS(addr string, endpoints *store.EndpointStore, processor *ingest.Processor, logger *slog.Logger) error {
+	s := &Server{endpoints: endpoints, processor: processor, logger: logger}
+	cfg := &piondtls.Config{
+		PSK: func(hint []byte) ([]byte, error) {
+			key, err := endpoints.LookupLwM2MPSK(context.Background(), string(hint))
+			if err != nil {
+				logger.Warn("lwm2m dtls psk rejected", "identity", string(hint), "error", err)
+				return nil, err
+			}
+			return key, nil
+		},
+		CipherSuites: []piondtls.CipherSuiteID{
+			piondtls.TLS_PSK_WITH_AES_128_CCM_8,
+			piondtls.TLS_PSK_WITH_AES_128_CCM,
+			piondtls.TLS_PSK_WITH_AES_256_CCM_8,
+		},
+	}
+	logger.Info("lwm2m server listening (DTLS PSK)", "addr", addr)
+	return coap.ListenAndServeDTLS("udp", addr, cfg, s.router())
+}
+
+func (s *Server) router() *mux.Router {
 	r := mux.NewRouter()
 	r.Handle("/rd", mux.HandlerFunc(s.handleRegister))
 	r.HandleFunc("/*", s.handleAny)
-	logger.Info("lwm2m server listening", "addr", addr)
-	return coap.ListenAndServe("udp", addr, r)
+	return r
 }
 
 func (s *Server) handleRegister(w mux.ResponseWriter, r *mux.Message) {

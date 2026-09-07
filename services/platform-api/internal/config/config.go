@@ -42,6 +42,7 @@ type Config struct {
 	VpnPKIURL          string
 	CellularPublicHost string
 	CellularMQTTPort   int
+	CellularLwM2MDTLSPort int
 }
 
 func Load() Config {
@@ -82,6 +83,7 @@ func Load() Config {
 		VpnPKIURL:          env("VPN_PKI_URL", "http://vpn-pki:8099"),
 		CellularPublicHost: env("CELLULAR_PUBLIC_HOST", env("LNS_PUBLIC_HOST", env("CONSOLE_PUBLIC_HOST", "localhost"))),
 		CellularMQTTPort:   envInt("MQTT_PUBLIC_PORT", envInt("MQTT_IOT_HOST_PORT", 1885)),
+		CellularLwM2MDTLSPort: envInt("LWM2M_DTLS_PUBLIC_PORT", envInt("LWM2M_DTLS_HOST_PORT", 5684)),
 	}
 }
 

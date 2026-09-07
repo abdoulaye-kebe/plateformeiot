@@ -7,23 +7,27 @@ import (
 )
 
 type Config struct {
-	DatabaseURL   string
-	NATSURL       string
-	MQTTAddr      string
-	LwM2MAddr     string
-	PublicHost    string
-	MQTTPublicPort int
+	DatabaseURL        string
+	NATSURL            string
+	MQTTAddr           string
+	LwM2MAddr          string
+	LwM2MDTLSAddr      string
+	PublicHost         string
+	MQTTPublicPort     int
+	LwM2MDTLSPublicPort int
 }
 
 func Load() Config {
 	publicHost := env("CELLULAR_PUBLIC_HOST", env("LNS_PUBLIC_HOST", "localhost"))
 	return Config{
-		DatabaseURL:    env("DATABASE_URL", "postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable"),
-		NATSURL:        env("NATS_URL", "nats://nats:4222"),
-		MQTTAddr:       env("MQTT_LISTEN_ADDR", ":1884"),
-		LwM2MAddr:      env("LWM2M_LISTEN_ADDR", ":5683"),
-		PublicHost:     publicHost,
-		MQTTPublicPort: envInt("MQTT_PUBLIC_PORT", 1884),
+		DatabaseURL:         env("DATABASE_URL", "postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable"),
+		NATSURL:             env("NATS_URL", "nats://nats:4222"),
+		MQTTAddr:            env("MQTT_LISTEN_ADDR", ":1884"),
+		LwM2MAddr:           env("LWM2M_LISTEN_ADDR", ":5683"),
+		LwM2MDTLSAddr:       env("LWM2M_DTLS_LISTEN_ADDR", ":5684"),
+		PublicHost:          publicHost,
+		MQTTPublicPort:      envInt("MQTT_PUBLIC_PORT", 1884),
+		LwM2MDTLSPublicPort: envInt("LWM2M_DTLS_PUBLIC_PORT", 5684),
 	}
 }
 
@@ -49,6 +53,10 @@ func (c Config) MQTTPublicURL() string {
 
 func (c Config) LwM2MPublicURL() string {
 	return "coap://" + strings.TrimSpace(c.PublicHost) + ":5683"
+}
+
+func (c Config) LwM2MDTLSPublicURL() string {
+	return "coaps://" + strings.TrimSpace(c.PublicHost) + ":" + itoa(c.LwM2MDTLSPublicPort)
 }
 
 func itoa(n int) string {

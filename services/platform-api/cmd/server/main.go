@@ -123,6 +123,7 @@ func main() {
 		VpnPKI:               vpnpki.NewClient(cfg.VpnPKIURL),
 		CellularPublicHost:   cfg.CellularPublicHost,
 		CellularMQTTPort:     cfg.CellularMQTTPort,
+		CellularLwM2MDTLSPort: cfg.CellularLwM2MDTLSPort,
 	})
 
 	srv := &http.Server{

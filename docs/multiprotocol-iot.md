@@ -5,7 +5,8 @@
 | Service | Port | Rôle |
 |---------|------|------|
 | `device-connectivity` | **1884/TCP** | Broker MQTT devices IP/cellulaire |
-| `device-connectivity` | **5683/UDP** | Serveur LwM2M (CoAP) |
+| `device-connectivity` | **5683/UDP** | Serveur LwM2M NoSec (tests) |
+| `device-connectivity` | **5684/UDP** | Serveur LwM2M DTLS/PSK (Adeunis, prod) |
 
 ## Console
 
@@ -27,10 +28,12 @@ Exemple payload JSON :
 
 ## LwM2M (LTE-M)
 
-- **Serveur** : `coap://<CELLULAR_PUBLIC_HOST>:5683`
-- **Endpoint** : `externalId` provisionné
-- **Registration** : `POST /rd?ep={externalId}&lt=300&lwm2m=1.0`
-- **Mode sécurité MVP** : NoSec UDP (DTLS/PSK en phase suivante)
+- **Serveur sécurisé (Adeunis)** : `coaps://<CELLULAR_PUBLIC_HOST>:5684`
+- **Endpoint / PSK identity** : `externalId` provisionné (IMEI recommandé Adeunis)
+- **PSK key** : hex généré à la création (copier depuis la console)
+- **Bootstrap** : laisser vide (enregistrement direct)
+- **Lifetime** : `1800` s recommandé
+- **NoSec (tests)** : `coap://<CELLULAR_PUBLIC_HOST>:5683`
 
 Les mises à jour ressource (POST/PUT) sont ingérées comme télémétrie.
 
@@ -48,6 +51,7 @@ Ouvrir le pare-feu :
 ```bash
 sudo ufw allow 1884/tcp
 sudo ufw allow 5683/udp
+sudo ufw allow 5684/udp
 ```
 
 Variables `.env` :
