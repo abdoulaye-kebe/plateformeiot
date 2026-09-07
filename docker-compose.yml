@@ -136,6 +136,8 @@ services:
       OPENVPN_PORT: "1194"
       OPENVPN_TUN_GATEWAY_IP: "10.8.0.1"
       VPN_PKI_URL: http://vpn-pki:8099
+      CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
+      MQTT_PUBLIC_PORT: "1884"
     ports:
       - "8081:8081"
 
@@ -175,6 +177,27 @@ services:
       MINIO_ACCESS_KEY: platform
       MINIO_SECRET_KEY: platform123
       MINIO_BUCKET: lorawan-payloads
+
+  device-connectivity:
+    build:
+      context: ./services/device-connectivity
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    ports:
+      - "${MQTT_IOT_HOST_PORT:-1884}:1884"
+      - "${LWM2M_HOST_PORT:-5683}:5683/udp"
+    environment:
+      DATABASE_URL: postgres://platform:platform@platform-postgres:5432/platform?sslmode=disable
+      NATS_URL: nats://nats:4222
+      MQTT_LISTEN_ADDR: ":1884"
+      LWM2M_LISTEN_ADDR: ":5683"
+      CELLULAR_PUBLIC_HOST: ${CELLULAR_PUBLIC_HOST:-${LNS_PUBLIC_HOST:-localhost}}
+      MQTT_PUBLIC_PORT: "1884"
 
   rule-engine:
     build:

@@ -37,5 +37,6 @@ run "Water leak detection" "$ROOT/infra/platform/postgres/016_water_leak_detecti
 run "Tenant agent config" "$ROOT/infra/platform/postgres/017_tenant_agent_config.sql"
 run "Agent vertical" "$ROOT/infra/platform/postgres/018_agent_vertical.sql"
 run "Gateway connectivity" "$ROOT/infra/platform/postgres/019_gateway_connectivity.sql"
+run "Multi-protocole IoT" "$ROOT/infra/platform/postgres/020_multiprotocol.sql"
 
 echo "✓ Toutes les migrations appliquées"

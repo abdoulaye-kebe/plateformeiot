@@ -40,6 +40,8 @@ type Config struct {
 	OpenVPNPort        int
 	OpenVPNTunGatewayIP string
 	VpnPKIURL          string
+	CellularPublicHost string
+	CellularMQTTPort   int
 }
 
 func Load() Config {
@@ -78,6 +80,8 @@ func Load() Config {
 		OpenVPNPort:        envInt("OPENVPN_PORT", 1194),
 		OpenVPNTunGatewayIP: env("OPENVPN_TUN_GATEWAY_IP", "10.8.0.1"),
 		VpnPKIURL:          env("VPN_PKI_URL", "http://vpn-pki:8099"),
+		CellularPublicHost: env("CELLULAR_PUBLIC_HOST", env("LNS_PUBLIC_HOST", env("CONSOLE_PUBLIC_HOST", "localhost"))),
+		CellularMQTTPort:   envInt("MQTT_PUBLIC_PORT", 1884),
 	}
 }
 

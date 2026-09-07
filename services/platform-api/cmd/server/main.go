@@ -48,6 +48,7 @@ func main() {
 	connectorStore := store.NewConnectorStore(db)
 	decoderStore := store.NewDecoderStore(db)
 	agentConfigStore := store.NewAgentConfigStore(db)
+	deviceEndpointStore := store.NewDeviceEndpointStore(db)
 	csClient := chirpstack.NewClient(cfg.ChirpStackRESTURL, cfg.ChirpStackAPIToken)
 	kcClient := keycloak.NewClient(keycloak.Config{
 		AdminURL:  cfg.KeycloakAdminURL,
@@ -99,6 +100,7 @@ func main() {
 		Connectors:           connectorStore,
 		Decoders:             decoderStore,
 		AgentConfig:          agentConfigStore,
+		DeviceEndpoints:      deviceEndpointStore,
 		Auth:                 validator,
 		ChirpStack:           csClient,
 		TenantID:             cfg.ChirpStackTenantID,
@@ -119,6 +121,8 @@ func main() {
 		OpenVPNPort:          cfg.OpenVPNPort,
 		OpenVPNTunGatewayIP:  cfg.OpenVPNTunGatewayIP,
 		VpnPKI:               vpnpki.NewClient(cfg.VpnPKIURL),
+		CellularPublicHost:   cfg.CellularPublicHost,
+		CellularMQTTPort:     cfg.CellularMQTTPort,
 	})
 
 	srv := &http.Server{

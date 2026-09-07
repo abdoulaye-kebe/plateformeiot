@@ -41,6 +41,7 @@ type Deps struct {
 	Connectors           *store.ConnectorStore
 	Decoders             *store.DecoderStore
 	AgentConfig          *store.AgentConfigStore
+	DeviceEndpoints      *store.DeviceEndpointStore
 	Auth                 *auth.Validator
 	TenantID             string
 	ChirpStackRESTURL    string
@@ -60,6 +61,8 @@ type Deps struct {
 	OpenVPNPort          int
 	OpenVPNTunGatewayIP  string
 	VpnPKI               *vpnpki.Client
+	CellularPublicHost   string
+	CellularMQTTPort     int
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -226,6 +229,16 @@ func NewRouter(deps Deps) http.Handler {
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Put("/{id}", deps.updateConnector)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/{id}", deps.deleteConnector)
 			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/{id}/test", deps.testConnector)
+		})
+
+		r.Route("/iot", func(r chi.Router) {
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/connectivity", deps.getIoTConnectivity)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices", deps.listIoTDevices)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Post("/devices", deps.createIoTDevice)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{id}", deps.getIoTDevice)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator", "viewer")).Get("/devices/{id}/telemetry", deps.listIoTDeviceTelemetry)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Get("/devices/{id}/provision", deps.provisionIoTDevice)
+			r.With(auth.RequireRoles("platform-admin", "tenant-admin", "operator")).Delete("/devices/{id}", deps.deleteIoTDevice)
 		})
 	})
 

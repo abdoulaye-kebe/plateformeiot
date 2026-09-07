@@ -28,6 +28,12 @@ const MAIN_NAV: NavItem[] = [
     match: (p) => p.startsWith("/devices"),
   },
   {
+    href: "/iot-devices",
+    label: "IoT LTE-M",
+    roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
+    match: (p) => p.startsWith("/iot-devices"),
+  },
+  {
     href: "/gateways",
     label: "Gateways",
     roles: ["platform-admin", "tenant-admin", "operator", "viewer"],
