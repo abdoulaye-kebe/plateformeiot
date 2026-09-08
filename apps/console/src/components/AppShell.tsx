@@ -176,12 +176,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar userEmail={user?.email} />
 
       <header className="relative z-40 bg-black">
-        {/* Ligne 1 : logo + actions */}
-        <div className="flex items-center justify-between gap-3 px-3 py-2 lg:px-6 lg:py-3">
-          <div className="flex min-w-0 items-center gap-2">
+        {/* Ligne 1 : marque + actions (pleine largeur) */}
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5 md:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <button
               type="button"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-white hover:bg-white/10 lg:hidden"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-white hover:bg-white/10 md:hidden"
               aria-expanded={mobileNavOpen}
               aria-controls="mobile-nav-panel"
               aria-label={mobileNavOpen ? "Fermer le menu" : "Ouvrir le menu"}
@@ -198,12 +198,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </svg>
               )}
             </button>
-            <Link href="/" className="shrink-0">
+            <Link href="/" className="shrink-0 md:hidden" aria-label="Accueil">
+              <BrandLogo variant="dark" compact iconOnly />
+            </Link>
+            <Link href="/" className="hidden shrink-0 md:block" aria-label="Accueil">
               <BrandLogo variant="dark" compact />
             </Link>
           </div>
 
-          <div className="hidden shrink-0 items-center gap-4 text-sm text-white/90 lg:flex">
+          <div className="hidden shrink-0 items-center gap-4 text-sm text-white/90 md:flex">
             <Link href="/settings" className="hover:text-white">
               Help center ?
             </Link>
@@ -214,19 +217,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+          <div className="flex shrink-0 items-center gap-2 md:hidden">
             <button type="button" onClick={logout} className="inline-flex h-10 w-10 items-center justify-center text-white/80 hover:text-white" title="Déconnexion">
               ⎋
             </button>
           </div>
         </div>
 
-        {/* Ligne 2 : navigation desktop (sous le logo — évite le chevauchement) */}
-        <nav
-          className="hidden border-t border-white/10 lg:block"
-          aria-label="Navigation principale"
-        >
-          <div className="flex items-stretch gap-1 overflow-x-auto px-6">
+        {/* Ligne 2 : navigation desktop — jamais sur la même ligne que le logo */}
+        <nav className="hidden bg-black md:block" aria-label="Navigation principale">
+          <div className="flex items-stretch gap-0 overflow-x-auto px-4 md:px-6">
             {mainNav.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} variant="desktop" />
             ))}
@@ -258,13 +258,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <>
             <button
               type="button"
-              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+              className="fixed inset-0 z-40 bg-black/50 md:hidden"
               aria-label="Fermer le menu"
               onClick={closeMobileNav}
             />
             <nav
               id="mobile-nav-panel"
-              className="absolute inset-x-0 top-full z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto border-t border-white/10 bg-black pb-8 shadow-2xl lg:hidden"
+              className="absolute inset-x-0 top-full z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto border-t border-white/10 bg-black pb-8 shadow-2xl md:hidden"
               aria-label="Navigation mobile"
             >
               {user?.email && (
@@ -272,7 +272,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   Connecté · {user.email.split("@")[0]}
                 </div>
               )}
-              <div className="border-b border-white/10 px-4 py-3 lg:hidden">
+              <div className="border-b border-white/10 px-4 py-3 md:hidden">
                 <TenantScopeSelector variant="header" />
               </div>
               {mainNav.map((item) => (

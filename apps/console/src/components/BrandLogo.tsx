@@ -2,10 +2,11 @@ type BrandLogoProps = {
   variant?: "dark" | "light";
   subtitle?: string;
   compact?: boolean;
+  iconOnly?: boolean;
 };
 
 /** Logo Orange — carré orange + produit (style Live Objects) */
-export default function BrandLogo({ variant = "dark", subtitle, compact = false }: BrandLogoProps) {
+export default function BrandLogo({ variant = "dark", subtitle, compact = false, iconOnly = false }: BrandLogoProps) {
   const productColor = variant === "dark" ? "text-white" : "text-black";
   const subtitleColor = variant === "dark" ? "text-white/70" : "text-gray-600";
 
@@ -19,12 +20,16 @@ export default function BrandLogo({ variant = "dark", subtitle, compact = false 
           orange
         </span>
       </div>
-      <div>
-        <p className={`font-bold leading-tight ${productColor} ${compact ? "text-base" : "text-lg"}`}>Orange IoT Platform</p>
-        <p className={`text-[10px] uppercase tracking-widest ${subtitleColor}`}>
-          {subtitle ?? "LoRaWAN · MQTT · LwM2M"}
-        </p>
-      </div>
+      {!iconOnly && (
+        <div className="min-w-0">
+          <p className={`truncate font-bold leading-tight ${productColor} ${compact ? "text-base" : "text-lg"}`}>
+            Orange IoT Platform
+          </p>
+          <p className={`truncate text-[10px] uppercase tracking-widest ${subtitleColor}`}>
+            {subtitle ?? "LoRaWAN · MQTT · LwM2M"}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

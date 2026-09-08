@@ -26,8 +26,12 @@ export default function TopBar(_props: TopBarProps) {
   }, []);
 
   return (
-    <div className="flex items-center justify-between bg-black px-3 py-1.5 text-[11px] text-white/80 sm:px-4 lg:px-6">
-      <span className="truncate">Sonatel · Orange IoT</span>
+    <div className="flex items-center justify-between bg-black px-3 py-1.5 text-[11px] text-white/80 sm:px-4 md:px-6">
+      <div className="flex min-w-0 items-center gap-2 truncate">
+        <span className="shrink-0">Sonatel · Orange IoT</span>
+        <span className="hidden text-white/35 sm:inline">|</span>
+        <span className="hidden truncate font-medium text-white/90 sm:inline">Orange IoT Platform</span>
+      </div>
       <div className="flex shrink-0 items-center gap-3 pl-2">
         <span className="text-white/60">Local time {now || "—"}</span>
       </div>
