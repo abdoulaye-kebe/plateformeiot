@@ -1,0 +1,50 @@
+{
+  "configName": "Orange IoT Platform - Dry Contacts 351034922982719",
+  "productReference": "ARF8420A",
+  "platform": "Orange IoT Platform",
+  "comment": "Preset reference — récupérer pskKeyHex à jour dans Console IoT LTE-M → Connexion",
+  "activation": {
+    "productMode": "PRODUCTION"
+  },
+  "connectivity": {
+    "protocols": {
+      "dataTransferProtocol": "LwM2M",
+      "productServerCommunication": "PUSH"
+    },
+    "network": {
+      "apn": "nbiot",
+      "connectionPreference": "LTE-Cat-M1 first, NB-IoT next",
+      "networkSelection": "Automatic"
+    },
+    "lwm2m": {
+      "serverUri": "coaps://52.212.191.28:5684",
+      "shortServerId": "1",
+      "lifetimeSeconds": 1800,
+      "pskIdentity": "urn:imei:351034922982719",
+      "pskKeyHex": "35839507ACF77D4801A02AF9F8FE448C",
+      "bootstrapServerUri": "",
+      "bootstrapPskIdentity": "",
+      "bootstrapPskKeyHex": "",
+      "uniqueDeviceName": "urn:imei:351034922982719",
+      "reliableNotifications": "Activated",
+      "lwm2mContextErase": "Off"
+    }
+  },
+  "application": {
+    "comment": "Pour voir l'aimant rapidement : période 60 s + mode événement si dispo",
+    "sensorsSamplingFrequencySeconds": 60,
+    "transmissionFrequencySeconds": 60,
+    "transmissionMode": "Periodic and event-based if available",
+    "dryContactInput1": "Enabled",
+    "dryContactInput2": "Disabled"
+  },
+  "adeunisAppFieldsFr": {
+    "URI du serveur LwM2M": "coaps://52.212.191.28:5684",
+    "Identité PSK (serveur LwM2M)": "urn:imei:351034922982719",
+    "Clé PSK (serveur LwM2M)": "35839507ACF77D4801A02AF9F8FE448C",
+    "Identifiant court du serveur LwM2M": "1",
+    "Lifetime LwM2M": "1800",
+    "URI du serveur de bootstrap": "",
+    "Nom unique du produit": "urn:imei:351034922982719"
+  }
+}

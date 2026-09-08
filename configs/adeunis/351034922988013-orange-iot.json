@@ -1,0 +1,51 @@
+{
+  "configName": "Orange IoT Platform - Dry Contacts 351034922988013",
+  "productReference": "ARF8420A",
+  "platform": "Orange IoT Platform",
+  "comment": "Preset reference Adeunis IoT Configurator — PSK en MAJUSCULES. Bootstrap vide.",
+  "activation": {
+    "productMode": "PRODUCTION"
+  },
+  "connectivity": {
+    "protocols": {
+      "dataTransferProtocol": "LwM2M",
+      "productServerCommunication": "PUSH"
+    },
+    "network": {
+      "apn": "nbiot",
+      "connectionPreference": "LTE-Cat-M1 first, NB-IoT next",
+      "networkSelection": "Automatic",
+      "comment": "Ajuster APN selon votre SIM Orange / Sonatel IoT"
+    },
+    "lwm2m": {
+      "serverUri": "coaps://52.212.191.28:5684",
+      "shortServerId": "1",
+      "lifetimeSeconds": 1800,
+      "pskIdentity": "urn:imei:351034922988013",
+      "pskKeyHex": "81AD2D4D8EA8ED97A6C7820E195C79F6",
+      "bootstrapServerUri": "",
+      "bootstrapPskIdentity": "",
+      "bootstrapPskKeyHex": "",
+      "uniqueDeviceName": "urn:imei:351034922988013",
+      "reliableNotifications": "Activated",
+      "lwm2mContextErase": "Off"
+    }
+  },
+  "application": {
+    "comment": "Dry Contacts — pour test aimant : réduire les périodes",
+    "sensorsSamplingFrequencySeconds": 60,
+    "transmissionFrequencySeconds": 60,
+    "transmissionMode": "Periodic and event-based if available",
+    "dryContactInput1": "Enabled",
+    "dryContactInput2": "Disabled"
+  },
+  "adeunisAppFieldsFr": {
+    "URI du serveur LwM2M": "coaps://52.212.191.28:5684",
+    "Identité PSK (serveur LwM2M)": "urn:imei:351034922988013",
+    "Clé PSK (serveur LwM2M)": "81AD2D4D8EA8ED97A6C7820E195C79F6",
+    "Identifiant court du serveur LwM2M": "1",
+    "Lifetime LwM2M": "1800",
+    "URI du serveur de bootstrap": "",
+    "Nom unique du produit": "urn:imei:351034922988013"
+  }
+}
