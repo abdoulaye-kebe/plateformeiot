@@ -176,7 +176,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar userEmail={user?.email} />
 
       <header className="relative z-40 bg-black">
-        <div className="flex items-center justify-between gap-2 px-3 py-2 lg:gap-6 lg:px-6 lg:py-0">
+        {/* Ligne 1 : logo + actions */}
+        <div className="flex items-center justify-between gap-3 px-3 py-2 lg:px-6 lg:py-3">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -197,17 +198,40 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </svg>
               )}
             </button>
-            <div className="flex shrink-0 items-center py-1 lg:py-3">
+            <Link href="/" className="shrink-0">
               <BrandLogo variant="dark" compact />
-            </div>
+            </Link>
           </div>
 
-          <nav className="hidden flex-1 items-stretch gap-5 lg:flex" aria-label="Navigation principale">
+          <div className="hidden shrink-0 items-center gap-4 text-sm text-white/90 lg:flex">
+            <Link href="/settings" className="hover:text-white">
+              Help center ?
+            </Link>
+            <TenantScopeSelector variant="header" />
+            <span className="max-w-[140px] truncate">{user?.email?.split("@")[0] || "—"}</span>
+            <button type="button" onClick={logout} className="text-white/70 hover:text-white" title="Déconnexion">
+              ⎋
+            </button>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+            <button type="button" onClick={logout} className="inline-flex h-10 w-10 items-center justify-center text-white/80 hover:text-white" title="Déconnexion">
+              ⎋
+            </button>
+          </div>
+        </div>
+
+        {/* Ligne 2 : navigation desktop (sous le logo — évite le chevauchement) */}
+        <nav
+          className="hidden border-t border-white/10 lg:block"
+          aria-label="Navigation principale"
+        >
+          <div className="flex items-stretch gap-1 overflow-x-auto px-6">
             {mainNav.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} variant="desktop" />
             ))}
             {extraNav.length > 0 && (
-              <div className="relative flex items-center">
+              <div className="relative flex shrink-0 items-center">
                 <button type="button" onClick={() => setMoreOpen((o) => !o)} className="nav-top-link">
                   More ▾
                 </button>
@@ -227,25 +251,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               </div>
             )}
-          </nav>
-
-          <div className="hidden shrink-0 items-center gap-4 py-3 text-sm text-white/90 lg:flex">
-            <Link href="/settings" className="hidden hover:text-white xl:inline">
-              Help center ?
-            </Link>
-            <TenantScopeSelector variant="header" />
-            <span className="hidden max-w-[140px] truncate xl:inline">{user?.email?.split("@")[0] || "—"}</span>
-            <button type="button" onClick={logout} className="text-white/70 hover:text-white" title="Déconnexion">
-              ⎋
-            </button>
           </div>
-
-          <div className="flex shrink-0 items-center gap-2 lg:hidden">
-            <button type="button" onClick={logout} className="inline-flex h-10 w-10 items-center justify-center text-white/80 hover:text-white" title="Déconnexion">
-              ⎋
-            </button>
-          </div>
-        </div>
+        </nav>
 
         {mobileNavOpen && (
           <>

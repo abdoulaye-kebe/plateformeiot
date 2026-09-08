@@ -36,7 +36,7 @@ body {
   }
 
   .nav-top-link {
-    @apply whitespace-nowrap px-1 py-4 text-sm text-white/90 transition-colors hover:text-white;
+    @apply shrink-0 whitespace-nowrap px-3 py-3 text-sm text-white/90 transition-colors hover:text-white;
   }
 
   .nav-top-active {
