@@ -103,19 +103,27 @@ func (s *Server) handleAny(w mux.ResponseWriter, r *mux.Message) {
 	if err != nil || path == "/rd" {
 		return
 	}
+	body := messageBody(r)
 	ep := s.endpointForPath(path)
+	if ep == "" {
+		ep = externalIDFromRegPath(path)
+	}
+	if ep != "" && len(body) > 0 {
+		s.logger.Info("lwm2m request", "path", path, "code", fmt.Sprintf("%v", r.Code), "bytes", len(body), "ep", ep)
+	}
 	if ep == "" {
 		if r.Code == codes.GET {
 			_ = w.SetResponse(codes.NotFound, message.TextPlain, bytes.NewReader(nil))
+		} else if len(body) > 0 {
+			s.logger.Warn("lwm2m request without device mapping", "path", path, "code", fmt.Sprintf("%v", r.Code), "bytes", len(body))
 		}
 		return
 	}
-	device, err := s.endpoints.GetByExternalID(context.Background(), "lwm2m", ep)
+	device, err := s.endpoints.ResolveLwM2M(context.Background(), ep)
 	if err != nil {
 		_ = w.SetResponse(codes.Forbidden, message.TextPlain, bytes.NewReader([]byte("unknown endpoint")))
 		return
 	}
-	body := messageBody(r)
 	if len(body) > 0 && (r.Code == codes.POST || r.Code == codes.PUT) {
 		_ = s.processor.Handle(context.Background(), ingest.Input{
 			Endpoint: device,
@@ -134,6 +142,18 @@ func (s *Server) handleAny(w mux.ResponseWriter, r *mux.Message) {
 	default:
 		_ = w.SetResponse(codes.Valid, message.AppJSON, bytes.NewReader(nil))
 	}
+}
+
+func externalIDFromRegPath(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 2 || parts[0] != "rd" {
+		return ""
+	}
+	regID := parts[1]
+	if i := strings.LastIndex(regID, "-"); i > 0 {
+		return regID[:i]
+	}
+	return regID
 }
 
 func (s *Server) endpointForPath(path string) string {
