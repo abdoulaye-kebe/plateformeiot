@@ -229,18 +229,20 @@ func buildProvisionInfo(d Deps, ep store.DeviceEndpoint, creds map[string]string
 	}
 	if ep.Protocol == "lwm2m" {
 		dtlsPort := d.CellularLwM2MDTLSPort
+		pskHex := strings.ToUpper(strings.TrimSpace(creds["psk"]))
 		out["lwm2m"] = map[string]any{
 			"server":         "coaps://" + host + ":" + itoaStr(dtlsPort),
 			"endpoint":       ep.ExternalID,
 			"registerUri":    "coaps://" + host + ":" + itoaStr(dtlsPort) + "/rd?ep=" + ep.ExternalID + "&lt=1800&lwm2m=1.1",
 			"pskIdentity":    creds["pskIdentity"],
 			"pskIdentityAlt": creds["pskIdentityAlt"],
-			"psk":            creds["psk"],
-			"pskKeyHex":      creds["psk"],
+			"psk":            pskHex,
+			"pskKeyHex":      pskHex,
 			"securityMode":   "dtls-psk",
 			"lifetimeSec":    1800,
 			"bootstrapUri":   "",
 			"examplePayload": `{"3":{"0":{"11":"86"}}}`,
+			"adeunisNote":    "Clé PSK en MAJUSCULES (A-F) dans l'app IoT Configurator",
 		}
 	}
 	return out
