@@ -54,7 +54,7 @@ func (s *DeviceEndpointStore) Create(ctx context.Context, in CreateDeviceEndpoin
 		creds["mqttPassword"] = randomToken(24)
 	case "lwm2m":
 		creds["pskIdentity"] = in.ExternalID
-		creds["psk"] = randomToken(16)
+		creds["psk"] = strings.ToUpper(randomToken(16))
 		if !strings.HasPrefix(in.ExternalID, "urn:imei:") {
 			creds["pskIdentityAlt"] = "urn:imei:" + in.ExternalID
 		}
