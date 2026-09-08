@@ -66,7 +66,20 @@ func (s *EndpointStore) AuthenticateMQTT(ctx context.Context, username, password
 }
 
 func (s *EndpointStore) GetLwM2M(ctx context.Context, endpointName string) (*Endpoint, error) {
-	return s.GetByExternalID(ctx, "lwm2m", endpointName)
+	return s.ResolveLwM2M(ctx, endpointName)
+}
+
+func (s *EndpointStore) ResolveLwM2M(ctx context.Context, identity string) (*Endpoint, error) {
+	for _, candidate := range lwm2mIdentityCandidates(identity) {
+		ep, err := s.GetByExternalID(ctx, "lwm2m", candidate)
+		if err == nil {
+			return ep, nil
+		}
+		if !errors.Is(err, ErrEndpointNotFound) {
+			return nil, err
+		}
+	}
+	return nil, ErrEndpointNotFound
 }
 
 func (s *EndpointStore) LookupLwM2MPSK(ctx context.Context, identity string) ([]byte, error) {

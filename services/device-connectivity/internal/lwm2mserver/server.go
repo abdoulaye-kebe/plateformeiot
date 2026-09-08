@@ -36,11 +36,13 @@ func StartDTLS(addr string, endpoints *store.EndpointStore, processor *ingest.Pr
 	s := &Server{endpoints: endpoints, processor: processor, logger: logger}
 	cfg := &piondtls.Config{
 		PSK: func(hint []byte) ([]byte, error) {
-			key, err := endpoints.LookupLwM2MPSK(context.Background(), string(hint))
+			identity := string(hint)
+			key, err := endpoints.LookupLwM2MPSK(context.Background(), identity)
 			if err != nil {
-				logger.Warn("lwm2m dtls psk rejected", "identity", string(hint), "error", err)
+				logger.Warn("lwm2m dtls psk rejected", "identity", identity, "error", err)
 				return nil, err
 			}
+			logger.Info("lwm2m dtls psk accepted", "identity", identity)
 			return key, nil
 		},
 		CipherSuites: []piondtls.CipherSuiteID{
@@ -67,17 +69,20 @@ func (s *Server) handleRegister(w mux.ResponseWriter, r *mux.Message) {
 	}
 	ep := endpointFromQueries(r)
 	if ep == "" {
+		s.logger.Warn("lwm2m register missing ep")
 		_ = w.SetResponse(codes.BadRequest, message.TextPlain, bytes.NewReader([]byte("missing ep")))
 		return
 	}
-	device, err := s.endpoints.GetByExternalID(context.Background(), "lwm2m", ep)
+	device, err := s.endpoints.ResolveLwM2M(context.Background(), ep)
 	if err != nil {
+		s.logger.Warn("lwm2m register unknown endpoint", "ep", ep, "error", err)
 		_ = w.SetResponse(codes.Forbidden, message.TextPlain, bytes.NewReader([]byte("unknown endpoint")))
 		return
 	}
-	regID := fmt.Sprintf("%s-%d", ep, time.Now().Unix())
+	regID := fmt.Sprintf("%s-%d", device.ExternalID, time.Now().Unix())
 	regPath := "/rd/" + regID
-	s.registrations.Store(ep, regPath)
+	s.registrations.Store(device.ExternalID, regPath)
+	s.logger.Info("lwm2m register ok", "ep", ep, "externalId", device.ExternalID, "regPath", regPath)
 	if body := messageBody(r); len(body) > 0 {
 		_ = s.processor.Handle(context.Background(), ingest.Input{
 			Endpoint: device,
